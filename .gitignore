@@ -10,11 +10,6 @@ src/spectrum.wasm
 *.wasm
 *.wat
 
-# ROM file (copyrighted, not redistributable)
-src/48.rom
-src/*.rom
-src/*.bin
-
 # Debug files
 debug*.mjs
 src/debug.html
