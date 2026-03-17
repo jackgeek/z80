@@ -112,8 +112,8 @@
   function zoneFor(clientX, clientY) {
     const or = overlay.getBoundingClientRect();
     const relX = clientX - or.left;
-    if (relX < or.width * 0.45) return 'fire';
-    if (relX > or.width * 0.55) return 'dpad';
+    if (relX < or.width * 0.45) return 'dpad';   // left = D-pad
+    if (relX > or.width * 0.55) return 'fire';   // right = fire
     return null; // dead middle strip
   }
 
@@ -218,5 +218,31 @@
     joyType = joySelect.value;
     releaseAll();
   });
+
+  // ── Viewport resize / orientation change ──────────────────────────────────
+  // iOS Safari fires orientationchange *before* the viewport updates, so we
+  // wait 300ms for the browser to settle then update --vh and fire resize.
+  function updateVH() {
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+    // Re-fire resize so cube.js and any other listeners recompute their sizes
+    window.dispatchEvent(new Event('resize'));
+  }
+
+  let resizeTimer = null;
+  function scheduleResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(updateVH, 300);
+  }
+
+  window.addEventListener('orientationchange', scheduleResize);
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    // Immediate update for normal resize; orientation change uses the 300ms path
+    updateVH();
+  });
+
+  // Set initial value
+  updateVH();
 
 })();

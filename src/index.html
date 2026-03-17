@@ -166,7 +166,9 @@
 
   body.js-fullscreen #main-area {
     position: fixed;
-    inset: 0;
+    top: 0; left: 0; right: 0;
+    /* Use --vh so iOS Safari addresses-bar changes are handled correctly */
+    height: calc(var(--vh, 1vh) * 100);
     z-index: 500;
     flex-direction: column;
     align-items: stretch;
@@ -177,6 +179,7 @@
 
   body.js-fullscreen #screen-side {
     flex: 1;
+    min-height: 0; /* allow flex child to shrink */
     max-width: none;
     display: flex;
     align-items: center;
@@ -188,8 +191,8 @@
     background: transparent;
     box-shadow: none;
     border-radius: 0;
-    height: 100%;
     width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -215,19 +218,26 @@
   #fs-exit-btn {
     display: none;
     position: fixed;
-    top: 8px; right: 8px;
-    z-index: 600;
-    background: rgba(0,0,0,0.6);
+    top: 10px; right: 10px;
+    z-index: 700;
+    width: 40px;
+    height: 40px;
+    background: rgba(0,0,0,0.65);
     color: #fff;
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 4px;
-    padding: 6px 10px;
-    font-size: 0.85em;
+    border: 2px solid rgba(255,255,255,0.45);
+    border-radius: 50%;
+    font-size: 1.1em;
+    line-height: 1;
     cursor: pointer;
     font-family: inherit;
     touch-action: manipulation;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
   }
-  body.js-fullscreen #fs-exit-btn { display: block; }
+  #fs-exit-btn:active { background: rgba(60,0,0,0.8); }
+  body.js-fullscreen #fs-exit-btn { display: flex; }
 
   /* ══════════════════════════════════════════════════════════
      JOYSTICK OVERLAY (visible in fullscreen only)
@@ -246,9 +256,10 @@
     position: fixed;
   }
 
-  /* Fire zone — left 40% */
+  /* Fire zone — right 40% */
   #js-fire-zone {
     width: 40%;
+    margin-left: auto;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -291,10 +302,9 @@
     background: rgba(255, 100, 100, 0.9);
   }
 
-  /* D-pad zone — right 40% */
+  /* D-pad zone — left 40% */
   #js-dpad-zone {
     width: 40%;
-    margin-left: auto;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -356,12 +366,6 @@
 
       <!-- Joystick overlay — lives here, fixed-positioned in fullscreen -->
       <div id="joystick-overlay">
-        <div id="js-fire-zone">
-          <div id="js-fire-btn">
-            <div class="fire-dot"></div>
-            <span class="fire-label">FIRE</span>
-          </div>
-        </div>
         <div id="js-dpad-zone">
           <div id="js-dpad">
             <div class="js-dpad-arm js-dpad-up"    data-dir="up">▲</div>
@@ -369,6 +373,12 @@
             <div class="js-dpad-center"></div>
             <div class="js-dpad-arm js-dpad-right" data-dir="right">►</div>
             <div class="js-dpad-arm js-dpad-down"  data-dir="down">▼</div>
+          </div>
+        </div>
+        <div id="js-fire-zone">
+          <div id="js-fire-btn">
+            <div class="fire-dot"></div>
+            <span class="fire-label">FIRE</span>
           </div>
         </div>
       </div>
@@ -409,7 +419,7 @@
 
   </div>
 
-  <button id="fs-exit-btn">✕ Exit fullscreen</button>
+  <button id="fs-exit-btn" title="Exit fullscreen">✕</button>
   <div id="drop-overlay">Drop .tap / .tzx / .zip / .rom here</div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
