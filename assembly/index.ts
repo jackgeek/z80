@@ -124,6 +124,9 @@ let tapSize: u32 = 0;
 let tapPos: u32 = 0;
 let tapLoaded: bool = false;
 
+// Kempston joystick (port 0x1F): bit0=right, bit1=left, bit2=down, bit3=up, bit4=fire
+let kempston: u8 = 0;
+
 // Audio: beeper state and sample buffer
 // We record one sample per AUDIO_DIVISOR T-states
 // At 69888 T-states/frame and ~44100 Hz audio at 50fps → ~882 samples/frame
@@ -228,8 +231,8 @@ function portIn(port: u16): u8 {
     result = (result & 0x1F) | 0xA0;
     return result;
   }
-  // Kempston joystick (port 0x1F) - no joystick, return 0
-  if ((port & 0xFF) == 0x1F) return 0;
+  // Kempston joystick (port 0x1F)
+  if ((port & 0xFF) == 0x1F) return kempston;
   // Floating bus / default
   return 0xFF;
 }
@@ -1652,6 +1655,7 @@ export function init(): void {
   IFF1 = false; IFF2 = false; IM = 0;
   halted = false;
   cycles = 0;
+  kempston = 0;
   borderColor = 7;
   flashState = false;
   frameCount = 0;
@@ -1737,6 +1741,8 @@ export function getScreenBaseAddr(): u32 {
 export function getBorderColor(): u8 {
   return borderColor;
 }
+
+export function setKempston(v: u8): void { kempston = v; }
 
 export function getAudioBaseAddr(): u32 {
   return AUDIO_BASE;

@@ -26,7 +26,7 @@
     flex-shrink: 0;
   }
 
-  /* ── Main two-column layout ── */
+  /* ── Main layout ── */
   #main-area {
     display: flex;
     flex-direction: column;
@@ -35,7 +35,6 @@
     max-width: 1400px;
     gap: 8px;
   }
-
   @media (min-width: 1024px) {
     #main-area {
       flex-direction: row;
@@ -53,6 +52,7 @@
     flex-shrink: 0;
     width: 100%;
     max-width: 620px;
+    position: relative; /* needed for overlay positioning */
   }
 
   #screen-container {
@@ -84,7 +84,7 @@
   }
   #cube-canvas:active { cursor: grabbing; }
 
-  /* ── Keyboard side (keyboard + controls beneath) ── */
+  /* ── Keyboard side ── */
   #keyboard-side {
     display: flex;
     flex-direction: column;
@@ -93,7 +93,6 @@
     min-width: 0;
     gap: 8px;
   }
-
   @media (min-width: 1024px) {
     #keyboard-side {
       flex: 1;
@@ -103,7 +102,6 @@
       top: 8px;
     }
   }
-
   #keyboard-side #vkeyboard { margin: 0; }
 
   /* ── Controls ── */
@@ -114,7 +112,6 @@
     justify-content: center;
     align-items: center;
   }
-
   button, label.btn {
     background: #2d2d5e;
     color: #e0e0e0;
@@ -130,47 +127,220 @@
   input[type="file"] { display: none; }
 
   #cube-toggle-label {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.88em;
-    color: #aaa;
-    cursor: pointer;
-    user-select: none;
+    display: flex; align-items: center; gap: 5px;
+    font-size: 0.88em; color: #aaa; cursor: pointer; user-select: none;
   }
   #cube-toggle-label input[type="checkbox"] {
-    display: inline;
-    width: 15px; height: 15px;
+    display: inline; width: 15px; height: 15px;
+    cursor: pointer; accent-color: #ff6b6b;
+  }
+
+  #joy-type-select {
+    background: #2d2d5e; color: #e0e0e0;
+    border: 1px solid #4a4a8a; border-radius: 4px;
+    padding: 7px 8px; font-family: inherit; font-size: 0.88em;
     cursor: pointer;
-    accent-color: #ff6b6b;
   }
 
-  #status {
-    font-size: 0.8em;
-    color: #777;
-    text-align: center;
-  }
-
-  #keyboard-help {
-    font-size: 0.72em;
-    color: #555;
-    text-align: center;
-    line-height: 1.5;
-  }
+  #status { font-size: 0.8em; color: #777; text-align: center; }
+  #keyboard-help { font-size: 0.72em; color: #555; text-align: center; line-height: 1.5; }
 
   /* ── Drop overlay ── */
   #drop-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(26,26,46,0.92);
-    z-index: 100;
-    justify-content: center;
-    align-items: center;
-    font-size: 2em;
-    color: #ff6b6b;
+    display: none; position: fixed; inset: 0;
+    background: rgba(26,26,46,0.92); z-index: 100;
+    justify-content: center; align-items: center;
+    font-size: 2em; color: #ff6b6b;
   }
   #drop-overlay.active { display: flex; }
+
+  /* ══════════════════════════════════════════════════════════
+     FULLSCREEN MODE
+  ══════════════════════════════════════════════════════════ */
+  body.js-fullscreen {
+    overflow: hidden;
+    padding: 0;
+  }
+  body.js-fullscreen h1,
+  body.js-fullscreen #keyboard-side { display: none; }
+
+  body.js-fullscreen #main-area {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    flex-direction: column;
+    align-items: stretch;
+    max-width: none;
+    gap: 0;
+    background: #000;
+  }
+
+  body.js-fullscreen #screen-side {
+    flex: 1;
+    max-width: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  body.js-fullscreen #screen-container {
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  body.js-fullscreen #screen {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+
+  body.js-fullscreen #cube-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 0;
+  }
+
+  /* Fullscreen exit button */
+  #fs-exit-btn {
+    display: none;
+    position: fixed;
+    top: 8px; right: 8px;
+    z-index: 600;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 0.85em;
+    cursor: pointer;
+    font-family: inherit;
+    touch-action: manipulation;
+  }
+  body.js-fullscreen #fs-exit-btn { display: block; }
+
+  /* ══════════════════════════════════════════════════════════
+     JOYSTICK OVERLAY (visible in fullscreen only)
+  ══════════════════════════════════════════════════════════ */
+  #joystick-overlay {
+    display: none;
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 550;
+    touch-action: none;
+  }
+  body.js-fullscreen #joystick-overlay {
+    display: flex;
+    pointer-events: all;
+    position: fixed;
+  }
+
+  /* Fire zone — left 40% */
+  #js-fire-zone {
+    width: 40%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+  #js-fire-btn {
+    width: clamp(64px, 18vw, 110px);
+    height: clamp(64px, 18vw, 110px);
+    border-radius: 50%;
+    background: rgba(255, 80, 80, 0.15);
+    border: 2px solid rgba(255, 80, 80, 0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    transition: background 0.08s, border-color 0.08s;
+    user-select: none;
+    pointer-events: none;
+  }
+  #js-fire-btn .fire-dot {
+    width: clamp(18px, 5vw, 32px);
+    height: clamp(18px, 5vw, 32px);
+    border-radius: 50%;
+    background: rgba(255, 80, 80, 0.5);
+    transition: background 0.08s;
+  }
+  #js-fire-btn .fire-label {
+    font-size: clamp(9px, 2.2vw, 14px);
+    color: rgba(255,120,120,0.8);
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  #js-fire-zone.active #js-fire-btn {
+    background: rgba(255, 80, 80, 0.45);
+    border-color: rgba(255, 80, 80, 0.9);
+  }
+  #js-fire-zone.active #js-fire-btn .fire-dot {
+    background: rgba(255, 100, 100, 0.9);
+  }
+
+  /* D-pad zone — right 40% */
+  #js-dpad-zone {
+    width: 40%;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+
+  /* D-pad cross */
+  #js-dpad {
+    width: clamp(90px, 22vw, 140px);
+    height: clamp(90px, 22vw, 140px);
+    position: relative;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* Cross arms using pseudo elements + arrow divs */
+  .js-dpad-arm {
+    position: absolute;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: background 0.08s, border-color 0.08s;
+    font-size: clamp(10px, 2.8vw, 18px);
+    color: rgba(255,255,255,0.5);
+  }
+  .js-dpad-arm.active {
+    background: rgba(255,255,255,0.4);
+    border-color: rgba(255,255,255,0.8);
+    color: rgba(255,255,255,1);
+  }
+
+  /* Arm positions (33% wide/tall, centered) */
+  .js-dpad-up    { top: 0;   left: 33%; width: 34%; height: 34%; }
+  .js-dpad-down  { bottom:0; left: 33%; width: 34%; height: 34%; }
+  .js-dpad-left  { top: 33%; left: 0;   width: 34%; height: 34%; }
+  .js-dpad-right { top: 33%; right:0;   width: 34%; height: 34%; }
+  /* Centre cap */
+  .js-dpad-center {
+    position: absolute;
+    top: 33%; left: 33%; width: 34%; height: 34%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
 </style>
 </head>
 <body>
@@ -183,6 +353,25 @@
         <canvas id="screen" width="256" height="192"></canvas>
       </div>
       <canvas id="cube-canvas"></canvas>
+
+      <!-- Joystick overlay — lives here, fixed-positioned in fullscreen -->
+      <div id="joystick-overlay">
+        <div id="js-fire-zone">
+          <div id="js-fire-btn">
+            <div class="fire-dot"></div>
+            <span class="fire-label">FIRE</span>
+          </div>
+        </div>
+        <div id="js-dpad-zone">
+          <div id="js-dpad">
+            <div class="js-dpad-arm js-dpad-up"    data-dir="up">▲</div>
+            <div class="js-dpad-arm js-dpad-left"  data-dir="left">◄</div>
+            <div class="js-dpad-center"></div>
+            <div class="js-dpad-arm js-dpad-right" data-dir="right">►</div>
+            <div class="js-dpad-arm js-dpad-down"  data-dir="down">▼</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="keyboard-side">
@@ -199,6 +388,12 @@
         </label>
         <button id="reset-btn">Reset</button>
         <button id="pause-btn">Pause</button>
+        <button id="fs-btn">⛶ Fullscreen</button>
+        <select id="joy-type-select" title="Joystick type">
+          <option value="kempston">Kempston</option>
+          <option value="sinclair1">Sinclair 1</option>
+          <option value="cursor">Cursor</option>
+        </select>
         <label id="cube-toggle-label">
           <input type="checkbox" id="cube-toggle"> Cube mode
         </label>
@@ -214,11 +409,13 @@
 
   </div>
 
+  <button id="fs-exit-btn">✕ Exit fullscreen</button>
   <div id="drop-overlay">Drop .tap / .tzx / .zip / .rom here</div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="main.js"></script>
   <script src="cube.js"></script>
   <script src="vkeyboard.js"></script>
+  <script src="joystick.js"></script>
 </body>
 </html>
