@@ -1,0 +1,12 @@
+{
+  "name": "zx-spectrum-emulator",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "asc assembly/index.ts --outFile build/spectrum.wasm --runtime stub --optimizeLevel 3 --importMemory --initialMemory 256 --maximumMemory 256 && cp build/spectrum.wasm src/spectrum.wasm",
+    "serve": "npx http-server src -p 8080 -c-1",
+    "dev": "npm run build && npm run serve"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.27.0"
+  }
+}

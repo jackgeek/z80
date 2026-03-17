@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ZX Spectrum 48K Emulator</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 1.4em;
+    margin-bottom: 10px;
+    color: #ff6b6b;
+    text-shadow: 0 0 10px rgba(255,107,107,0.5);
+  }
+  #screen-container {
+    position: relative;
+    padding: 32px 40px;
+    background: #000;
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    margin: 10px 0;
+  }
+  #border-box {
+    background: #cdcdcd;
+    padding: 0;
+    display: flex;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 512px;
+    height: 384px;
+  }
+  #controls {
+    margin: 15px 0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button, label.btn {
+    background: #2d2d5e;
+    color: #e0e0e0;
+    border: 1px solid #4a4a8a;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9em;
+    transition: all 0.2s;
+  }
+  button:hover, label.btn:hover {
+    background: #3d3d7e;
+    border-color: #6a6aba;
+  }
+  input[type="file"] { display: none; }
+  #status {
+    font-size: 0.85em;
+    color: #888;
+    margin-top: 5px;
+    text-align: center;
+  }
+  #drop-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(26,26,46,0.9);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    font-size: 2em;
+    color: #ff6b6b;
+  }
+  #drop-overlay.active { display: flex; }
+  #keyboard-help {
+    margin-top: 15px;
+    font-size: 0.75em;
+    color: #666;
+    text-align: center;
+    max-width: 550px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+  <h1>ZX Spectrum 48K</h1>
+
+  <div id="screen-container">
+    <div id="border-box">
+      <canvas id="screen" width="256" height="192"></canvas>
+    </div>
+  </div>
+
+  <div id="controls">
+    <label class="btn">
+      Load ROM
+      <input type="file" id="rom-input" accept=".rom,.bin">
+    </label>
+    <label class="btn">
+      Load TAP
+      <input type="file" id="tap-input" accept=".tap">
+    </label>
+    <button id="reset-btn">Reset</button>
+    <button id="pause-btn">Pause</button>
+  </div>
+
+  <div id="status">Load a ZX Spectrum 48K ROM to begin. Then drag &amp; drop a .tap file.</div>
+
+  <div id="drop-overlay">Drop .tap or .rom file here</div>
+
+  <div id="keyboard-help">
+    Keyboard: 1-0, Q-P, A-L, Z-M, Enter, Space<br>
+    Shift = Caps Shift &nbsp;|&nbsp; Ctrl = Symbol Shift<br>
+    Use the Spectrum keyboard layout. LOAD "" = J then Sym+P Sym+P
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

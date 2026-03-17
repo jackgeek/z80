@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+emsdk/
+
+# Build output
+build/
+
+# Binary files
+src/spectrum.wasm
+*.wasm
+*.wat
+
+# ROM file (copyrighted, not redistributable)
+src/48.rom
+src/*.rom
+src/*.bin
+
+# Debug files
+debug*.mjs
+src/debug.html
+
+# Misc
+*.log
+.DS_Store
+Thumbs.db
