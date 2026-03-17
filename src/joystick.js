@@ -2,8 +2,7 @@
 
 (function () {
 
-  // ── Joystick key mappings (for non-Kempston types) ───────────────────────
-  // Format: { up, down, left, right, fire } each with { row, bit }
+  // ── Key mappings ──────────────────────────────────────────────────────────
   const KEYMAPS = {
     sinclair1: {
       up:    { row: 4, bit: 0x02 }, // 9
@@ -22,227 +21,210 @@
   };
 
   // ── State ─────────────────────────────────────────────────────────────────
-  let joyType = 'kempston';
-  let joy     = { up: false, down: false, left: false, right: false, fire: false };
-  let prev    = { up: false, down: false, left: false, right: false, fire: false };
+  let joyType = 'sinclair1';
   let isFullscreen = false;
+  let joy = { up: false, down: false, left: false, right: false, fire: false };
 
   // ── Elements ──────────────────────────────────────────────────────────────
-  const overlay   = document.getElementById('joystick-overlay');
+  const screenEl  = document.getElementById('screen');
+  const cubeEl    = document.getElementById('cube-canvas');
   const fireZone  = document.getElementById('js-fire-zone');
   const dpadZone  = document.getElementById('js-dpad-zone');
-  const dpad      = document.getElementById('js-dpad');
-  const fsBtn     = document.getElementById('fs-btn');
-  const fsExitBtn = document.getElementById('fs-exit-btn');
-  const joySelect = document.getElementById('joy-type-select');
+  const arms      = {};
+  document.querySelectorAll('.js-dpad-arm').forEach(el => { arms[el.dataset.dir] = el; });
 
-  // D-pad arm elements keyed by direction
-  const arms = {};
-  dpad.querySelectorAll('.js-dpad-arm').forEach(el => {
-    arms[el.dataset.dir] = el;
-  });
-
-  // ── Apply joystick state to emulator ──────────────────────────────────────
-  function applyJoy() {
+  // ── Apply joystick state ──────────────────────────────────────────────────
+  function applyJoy(next) {
     const dirs = ['up', 'down', 'left', 'right', 'fire'];
 
     if (joyType === 'kempston') {
-      const changed = dirs.some(d => joy[d] !== prev[d]);
+      const changed = dirs.some(d => next[d] !== joy[d]);
       if (changed && typeof wasm !== 'undefined' && wasm && wasm.setKempston) {
-        const v = (joy.right ? 0x01 : 0) | (joy.left  ? 0x02 : 0) |
-                  (joy.down  ? 0x04 : 0) | (joy.up    ? 0x08 : 0) |
-                  (joy.fire  ? 0x10 : 0);
-        wasm.setKempston(v);
+        wasm.setKempston(
+          (next.right ? 0x01 : 0) | (next.left  ? 0x02 : 0) |
+          (next.down  ? 0x04 : 0) | (next.up    ? 0x08 : 0) |
+          (next.fire  ? 0x10 : 0)
+        );
       }
     } else {
       const map = KEYMAPS[joyType];
-      if (!map) return;
-      dirs.forEach(d => {
-        if (joy[d] === prev[d]) return;
-        const k = map[d];
-        if (!k) return;
-        if (joy[d]) window.specKeyDown(k.row, k.bit);
-        else        window.specKeyUp(k.row, k.bit);
-      });
+      if (map) {
+        dirs.forEach(d => {
+          if (next[d] === joy[d]) return;
+          const k = map[d];
+          if (!k) return;
+          if (next[d]) window.specKeyDown(k.row, k.bit);
+          else         window.specKeyUp(k.row, k.bit);
+        });
+      }
     }
 
-    // Update D-pad arm visuals
+    // Update D-pad visuals
     ['up','down','left','right'].forEach(d => {
-      if (arms[d]) arms[d].classList.toggle('active', joy[d]);
+      if (arms[d]) arms[d].classList.toggle('active', next[d]);
     });
-    fireZone.classList.toggle('active', joy.fire);
+    fireZone.classList.toggle('active', next.fire);
 
-    prev = { ...joy };
+    joy = { ...next };
   }
 
   function releaseAll() {
-    joy = { up: false, down: false, left: false, right: false, fire: false };
-    applyJoy();
+    fireTouches.clear();
+    dpadTouches.clear();
+    applyJoy({ up: false, down: false, left: false, right: false, fire: false });
   }
 
-  // ── D-pad touch → direction ───────────────────────────────────────────────
-  function dpadDirs(touchX, touchY) {
-    const rect = dpadZone.getBoundingClientRect();
-    const cx   = rect.left + rect.width  * 0.5;
-    const cy   = rect.top  + rect.height * 0.5;
-    const dx   = touchX - cx;
-    const dy   = touchY - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const deadzone = Math.min(rect.width, rect.height) * 0.12;
+  // ── D-pad touch tracking ──────────────────────────────────────────────────
+  // Maps touch id → {x, y} (clientX/Y)
+  const dpadTouches = new Map();
+  const fireTouches = new Set();
 
-    if (dist < deadzone) {
+  function calcDirs() {
+    if (dpadTouches.size === 0) {
       return { up: false, down: false, left: false, right: false };
     }
 
-    const nx = dx / dist;  // normalised x:  -1…1
-    const ny = dy / dist;  // normalised y:  -1…1
+    // Use the most recently moved dpad touch
+    const touch = dpadTouches.values().next().value;
 
+    // Compute direction relative to the visual dpad center
+    const rect = dpadZone.getBoundingClientRect();
+    const cx = rect.left + rect.width  * 0.5;
+    const cy = rect.top  + rect.height * 0.5;
+    const dx = touch.x - cx;
+    const dy = touch.y - cy;
+    const dist = Math.hypot(dx, dy);
+    const deadzone = Math.min(rect.width, rect.height) * 0.08;
+
+    if (dist < deadzone) return { up: false, down: false, left: false, right: false };
+
+    const nx = dx / dist;
+    const ny = dy / dist;
     return {
-      up:    ny < -0.35,
-      down:  ny >  0.35,
-      left:  nx < -0.35,
-      right: nx >  0.35,
+      up:    ny < -0.3,
+      down:  ny >  0.3,
+      left:  nx < -0.3,
+      right: nx >  0.3,
     };
   }
 
-  // ── Multi-touch tracking ──────────────────────────────────────────────────
-  // Maps touch identifier → zone ('fire' | 'dpad')
-  const touchZones = new Map();
-
-  function zoneFor(clientX, clientY) {
-    const or = overlay.getBoundingClientRect();
-    const relX = clientX - or.left;
-    if (relX < or.width * 0.45) return 'dpad';   // left = D-pad
-    if (relX > or.width * 0.55) return 'fire';   // right = fire
-    return null; // dead middle strip
+  function updateJoy() {
+    applyJoy({ ...calcDirs(), fire: fireTouches.size > 0 });
   }
 
-  function recalcJoy() {
-    let fire = false;
-    let dirs = { up: false, down: false, left: false, right: false };
+  // ── D-pad touch events ────────────────────────────────────────────────────
+  dpadZone.addEventListener('touchstart', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      dpadTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
+    }
+    updateJoy();
+  }, { passive: false });
 
-    touchZones.forEach((zone, id) => {
-      if (zone.type === 'fire') {
-        fire = true;
-      } else if (zone.type === 'dpad') {
-        const d = dpadDirs(zone.x, zone.y);
-        if (d.up)    dirs.up    = true;
-        if (d.down)  dirs.down  = true;
-        if (d.left)  dirs.left  = true;
-        if (d.right) dirs.right = true;
+  dpadZone.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (dpadTouches.has(t.identifier)) {
+        dpadTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
       }
-    });
+    }
+    updateJoy();
+  }, { passive: false });
 
-    joy = { ...dirs, fire };
-    applyJoy();
+  function dpadEnd(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) dpadTouches.delete(t.identifier);
+    updateJoy();
+  }
+  dpadZone.addEventListener('touchend',    dpadEnd, { passive: false });
+  dpadZone.addEventListener('touchcancel', dpadEnd, { passive: false });
+
+  // ── Fire touch events ─────────────────────────────────────────────────────
+  fireZone.addEventListener('touchstart', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) fireTouches.add(t.identifier);
+    updateJoy();
+  }, { passive: false });
+
+  function fireEnd(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) fireTouches.delete(t.identifier);
+    updateJoy();
+  }
+  fireZone.addEventListener('touchend',    fireEnd, { passive: false });
+  fireZone.addEventListener('touchcancel', fireEnd, { passive: false });
+  fireZone.addEventListener('touchmove',   e => e.preventDefault(), { passive: false });
+
+  // ── Screen resizing ───────────────────────────────────────────────────────
+  // ResizeObserver fires AFTER layout, so container dimensions are always
+  // correct — even during iOS orientation transitions where viewport APIs
+  // return stale values.  This works in Safari, Chrome, and all iOS browsers.
+  const screenContainer = document.getElementById('screen-container');
+  const RATIO = 256 / 192;
+
+  function fitScreen(cw, ch) {
+    if (!cw || !ch) return;
+    let w, h;
+    if (cw / ch > RATIO) { h = ch; w = h * RATIO; }
+    else                  { w = cw; h = w / RATIO; }
+    screenEl.style.width  = Math.floor(w) + 'px';
+    screenEl.style.height = Math.floor(h) + 'px';
   }
 
-  overlay.addEventListener('touchstart', e => {
-    e.preventDefault();
-    Array.from(e.changedTouches).forEach(t => {
-      const type = zoneFor(t.clientX, t.clientY);
-      if (type) touchZones.set(t.identifier, { type, x: t.clientX, y: t.clientY });
-    });
-    recalcJoy();
-  }, { passive: false });
+  function clearScreenSize() {
+    screenEl.style.width  = '';
+    screenEl.style.height = '';
+  }
 
-  overlay.addEventListener('touchmove', e => {
-    e.preventDefault();
-    Array.from(e.changedTouches).forEach(t => {
-      if (touchZones.has(t.identifier)) {
-        const z = touchZones.get(t.identifier);
-        z.x = t.clientX;
-        z.y = t.clientY;
-      }
-    });
-    recalcJoy();
-  }, { passive: false });
-
-  overlay.addEventListener('touchend', e => {
-    e.preventDefault();
-    Array.from(e.changedTouches).forEach(t => touchZones.delete(t.identifier));
-    recalcJoy();
-  }, { passive: false });
-
-  overlay.addEventListener('touchcancel', e => {
-    Array.from(e.changedTouches).forEach(t => touchZones.delete(t.identifier));
-    recalcJoy();
-  }, { passive: false });
+  if (window.ResizeObserver) {
+    new ResizeObserver(entries => {
+      if (!isFullscreen) return;
+      const { width, height } = entries[0].contentRect;
+      fitScreen(width, height);
+    }).observe(screenContainer);
+  }
 
   // ── Fullscreen ────────────────────────────────────────────────────────────
   function enterFullscreen() {
     isFullscreen = true;
     document.body.classList.add('js-fullscreen');
+    clearScreenSize();
     releaseAll();
-    touchZones.clear();
+    window.scrollTo(0, 0);
 
-    // Try native fullscreen (works on Android, desktop; not iOS Safari)
     const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
-    if (req) req.call(el).catch(() => {}); // ignore errors (e.g. iOS denies it)
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
   }
 
   function exitFullscreen() {
     isFullscreen = false;
     document.body.classList.remove('js-fullscreen');
+    clearScreenSize();
     releaseAll();
-    touchZones.clear();
 
     if (document.fullscreenElement || document.webkitFullscreenElement) {
-      (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)
-        .call(document).catch(() => {});
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document).catch(() => {});
     }
   }
 
-  fsBtn.addEventListener('click', () => isFullscreen ? exitFullscreen() : enterFullscreen());
-  fsExitBtn.addEventListener('click', exitFullscreen);
+  document.getElementById('fs-btn').addEventListener('click',      () => isFullscreen ? exitFullscreen() : enterFullscreen());
+  document.getElementById('fs-exit-btn').addEventListener('click', exitFullscreen);
 
-  // Sync if user exits native fullscreen via browser UI / Escape key
-  document.addEventListener('fullscreenchange',       syncFsState);
-  document.addEventListener('webkitfullscreenchange', syncFsState);
+  // Sync when user exits via browser UI / Escape
   function syncFsState() {
     if (!document.fullscreenElement && !document.webkitFullscreenElement && isFullscreen) {
-      isFullscreen = false;
-      document.body.classList.remove('js-fullscreen');
-      releaseAll();
+      exitFullscreen();
     }
   }
+  document.addEventListener('fullscreenchange',       syncFsState);
+  document.addEventListener('webkitfullscreenchange', syncFsState);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && isFullscreen) exitFullscreen(); });
 
-  // Escape key exits CSS fullscreen too
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && isFullscreen) exitFullscreen();
-  });
-
-  // ── Joystick type selector ────────────────────────────────────────────────
-  joySelect.addEventListener('change', () => {
-    joyType = joySelect.value;
+  // ── Joystick type ─────────────────────────────────────────────────────────
+  document.getElementById('joy-type-select').addEventListener('change', e => {
+    joyType = e.target.value;
     releaseAll();
   });
-
-  // ── Viewport resize / orientation change ──────────────────────────────────
-  // iOS Safari fires orientationchange *before* the viewport updates, so we
-  // wait 300ms for the browser to settle then update --vh and fire resize.
-  function updateVH() {
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
-    // Re-fire resize so cube.js and any other listeners recompute their sizes
-    window.dispatchEvent(new Event('resize'));
-  }
-
-  let resizeTimer = null;
-  function scheduleResize() {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(updateVH, 300);
-  }
-
-  window.addEventListener('orientationchange', scheduleResize);
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    // Immediate update for normal resize; orientation change uses the 300ms path
-    updateVH();
-  });
-
-  // Set initial value
-  updateVH();
 
 })();
