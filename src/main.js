@@ -268,11 +268,9 @@ function renderFrame() {
 
   ctx.putImageData(imageData, 0, 0);
 
-  // Update border color
-  const borderBox = document.getElementById('border-box');
+  // Update border colour on the flat-screen container
   const bColor = BORDER_COLORS[wasm.getBorderColor()];
-  const container = document.getElementById('screen-container');
-  container.style.background = bColor;
+  document.getElementById('screen-container').style.background = bColor;
 }
 
 // ============================================================
