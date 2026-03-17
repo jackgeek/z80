@@ -195,11 +195,10 @@ function initAudio() {
   audioCtx.resume();
 }
 
-// Resume audio on any user interaction (required by iOS Safari)
+// Create or resume audio on any user interaction (required by mobile browsers).
+// The ROM auto-loads without a gesture, so audioCtx may not exist yet.
 ['touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
-  document.addEventListener(evt, () => {
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  }, { passive: true });
+  document.addEventListener(evt, () => initAudio(), { passive: true });
 });
 
 function pushAudioFrame() {
