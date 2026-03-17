@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZX Spectrum 48K Emulator</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+
   body {
     background: #1a1a2e;
     color: #e0e0e0;
@@ -13,96 +15,155 @@
     flex-direction: column;
     align-items: center;
     min-height: 100vh;
-    padding: 20px;
+    padding: 12px 8px;
   }
+
   h1 {
-    font-size: 1.4em;
+    font-size: 1.3em;
     margin-bottom: 10px;
     color: #ff6b6b;
     text-shadow: 0 0 10px rgba(255,107,107,0.5);
+    flex-shrink: 0;
   }
 
-  /* Flat screen view */
-  #screen-container {
-    position: relative;
-    padding: 32px 40px;
-    background: #cdcdcd;
-    border-radius: 8px;
-    box-shadow: 0 0 30px rgba(0,0,0,0.8);
-    margin: 10px 0;
+  /* ── Main two-column layout ── */
+  #main-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 1400px;
+    gap: 8px;
   }
+
+  @media (min-width: 1024px) {
+    #main-area {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 16px;
+    }
+  }
+
+  /* ── Screen side ── */
+  #screen-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 620px;
+  }
+
+  #screen-container {
+    padding: clamp(10px, 3vw, 32px) clamp(12px, 4vw, 40px);
+    background: #cdcdcd;
+    border-radius: 6px;
+    box-shadow: 0 0 24px rgba(0,0,0,0.8);
+    width: 100%;
+  }
+
   #screen {
     display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    width: 512px;
-    height: 384px;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 256 / 192;
   }
 
-  /* Three.js cube canvas */
   #cube-canvas {
     display: none;
     border-radius: 8px;
     box-shadow: 0 0 40px rgba(255,107,107,0.2);
-    margin: 10px 0;
     cursor: grab;
+    width: 100%;
+    max-width: 560px;
+    aspect-ratio: 1;
+    height: auto;
   }
   #cube-canvas:active { cursor: grabbing; }
 
-  #controls {
-    margin: 15px 0;
+  /* ── Keyboard side (keyboard + controls beneath) ── */
+  #keyboard-side {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    width: 100%;
+    max-width: 700px;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  @media (min-width: 1024px) {
+    #keyboard-side {
+      flex: 1;
+      max-width: 680px;
+      align-self: flex-start;
+      position: sticky;
+      top: 8px;
+    }
+  }
+
+  #keyboard-side #vkeyboard { margin: 0; }
+
+  /* ── Controls ── */
+  #controls {
+    display: flex;
+    gap: 8px;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
   }
+
   button, label.btn {
     background: #2d2d5e;
     color: #e0e0e0;
     border: 1px solid #4a4a8a;
-    padding: 8px 16px;
+    padding: 7px 14px;
     border-radius: 4px;
     cursor: pointer;
     font-family: inherit;
-    font-size: 0.9em;
-    transition: all 0.2s;
+    font-size: 0.88em;
+    transition: background 0.2s;
   }
-  button:hover, label.btn:hover {
-    background: #3d3d7e;
-    border-color: #6a6aba;
-  }
+  button:hover, label.btn:hover { background: #3d3d7e; border-color: #6a6aba; }
   input[type="file"] { display: none; }
 
-  /* Cube toggle checkbox */
   #cube-toggle-label {
     display: flex;
     align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    font-size: 0.9em;
+    gap: 5px;
+    font-size: 0.88em;
     color: #aaa;
+    cursor: pointer;
     user-select: none;
   }
   #cube-toggle-label input[type="checkbox"] {
     display: inline;
-    width: 16px;
-    height: 16px;
+    width: 15px; height: 15px;
     cursor: pointer;
     accent-color: #ff6b6b;
   }
 
   #status {
-    font-size: 0.85em;
-    color: #888;
-    margin-top: 5px;
+    font-size: 0.8em;
+    color: #777;
     text-align: center;
   }
+
+  #keyboard-help {
+    font-size: 0.72em;
+    color: #555;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ── Drop overlay ── */
   #drop-overlay {
     display: none;
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(26,26,46,0.9);
+    inset: 0;
+    background: rgba(26,26,46,0.92);
     z-index: 100;
     justify-content: center;
     align-items: center;
@@ -110,51 +171,50 @@
     color: #ff6b6b;
   }
   #drop-overlay.active { display: flex; }
-  #keyboard-help {
-    margin-top: 15px;
-    font-size: 0.75em;
-    color: #666;
-    text-align: center;
-    max-width: 550px;
-    line-height: 1.6;
-  }
 </style>
 </head>
 <body>
   <h1>ZX Spectrum 48K</h1>
 
-  <!-- Flat screen view -->
-  <div id="screen-container">
-    <canvas id="screen" width="256" height="192"></canvas>
+  <div id="main-area">
+
+    <div id="screen-side">
+      <div id="screen-container">
+        <canvas id="screen" width="256" height="192"></canvas>
+      </div>
+      <canvas id="cube-canvas"></canvas>
+    </div>
+
+    <div id="keyboard-side">
+      <!-- #vkeyboard inserted here by vkeyboard.js -->
+
+      <div id="controls">
+        <label class="btn">
+          Load ROM
+          <input type="file" id="rom-input" accept=".rom,.bin">
+        </label>
+        <label class="btn">
+          Load TAP / TZX
+          <input type="file" id="tap-input" accept=".tap,.tzx,.zip">
+        </label>
+        <button id="reset-btn">Reset</button>
+        <button id="pause-btn">Pause</button>
+        <label id="cube-toggle-label">
+          <input type="checkbox" id="cube-toggle"> Cube mode
+        </label>
+      </div>
+
+      <div id="status">Loading...</div>
+
+      <div id="keyboard-help">
+        Physical: Shift = Caps Shift &nbsp;|&nbsp; Ctrl = Symbol Shift<br>
+        Virtual: tap CAPS/SYM to latch, then tap a key
+      </div>
+    </div>
+
   </div>
-
-  <!-- Three.js cube view (hidden by default) -->
-  <canvas id="cube-canvas"></canvas>
-
-  <div id="controls">
-    <label class="btn">
-      Load ROM
-      <input type="file" id="rom-input" accept=".rom,.bin">
-    </label>
-    <label class="btn">
-      Load TAP / TZX
-      <input type="file" id="tap-input" accept=".tap,.tzx,.zip">
-    </label>
-    <button id="reset-btn">Reset</button>
-    <button id="pause-btn">Pause</button>
-    <label id="cube-toggle-label">
-      <input type="checkbox" id="cube-toggle"> Cube mode
-    </label>
-  </div>
-
-  <div id="status">Loading...</div>
 
   <div id="drop-overlay">Drop .tap / .tzx / .zip / .rom here</div>
-
-  <div id="keyboard-help">
-    Physical: Shift = Caps Shift &nbsp;|&nbsp; Ctrl = Symbol Shift<br>
-    Virtual: tap CAPS or SYM to latch, then tap a key &nbsp;|&nbsp; orange = Symbol Shift symbol
-  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="main.js"></script>

@@ -9,7 +9,7 @@
   let cubeMode = false;
 
   // ── Renderer ──────────────────────────────────────────────
-  const SIZE = Math.min(window.innerWidth - 40, 560);
+  const SIZE = Math.min((document.getElementById('screen-side') || document.body).clientWidth || 560, 560);
   cubeCanvas.width  = SIZE;
   cubeCanvas.height = SIZE;
 
@@ -99,7 +99,7 @@
 
   // ── Resize ────────────────────────────────────────────────
   window.addEventListener('resize', () => {
-    const s = Math.min(window.innerWidth - 40, 560);
+    const s = Math.min((document.getElementById('screen-side') || document.body).clientWidth || 560, 560);
     renderer.setSize(s, s);
     cubeCanvas.width  = s;
     cubeCanvas.height = s;

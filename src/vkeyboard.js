@@ -202,7 +202,13 @@
   });
   kb.appendChild(stripe);
 
-  document.body.appendChild(kb);
+  const kbSide = document.getElementById('keyboard-side');
+  const controls = document.getElementById('controls');
+  if (kbSide && controls) {
+    kbSide.insertBefore(kb, controls);
+  } else {
+    (kbSide || document.body).appendChild(kb);
+  }
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   const style = document.createElement('style');
