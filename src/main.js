@@ -247,21 +247,193 @@ function loadROM(data, fromUserGesture = true) {
 }
 
 // ============================================================
-// TAP LOADING
+// TZX → TAP CONVERTER
+// Extracts data blocks from TZX and rebuilds a TAP-compatible buffer
 // ============================================================
-function loadTAP(data) {
+function tzxToTap(data) {
+  const b = new Uint8Array(data);
+
+  // Validate header: "ZXTape!" + 0x1A
+  const sig = String.fromCharCode(b[0],b[1],b[2],b[3],b[4],b[5],b[6]);
+  if (sig !== 'ZXTape!') throw new Error('Not a valid TZX file');
+
+  const blocks = [];
+  let pos = 10; // skip 10-byte TZX header
+
+  while (pos < b.length) {
+    const id = b[pos++];
+
+    switch (id) {
+      case 0x10: { // Standard speed data block
+        pos += 2; // pause duration
+        const len = b[pos] | (b[pos+1] << 8); pos += 2;
+        blocks.push(b.slice(pos, pos + len)); pos += len;
+        break;
+      }
+      case 0x11: { // Turbo speed data block
+        pos += 15; // pilot/sync/bit timings + pause (15 bytes)
+        const len = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
+        blocks.push(b.slice(pos, pos + len)); pos += len;
+        break;
+      }
+      case 0x14: { // Pure data block
+        pos += 7; // zero/one bit timings + used bits + pause
+        const len = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
+        blocks.push(b.slice(pos, pos + len)); pos += len;
+        break;
+      }
+      case 0x12: pos += 4;  break; // Pure tone
+      case 0x13: pos += b[pos] * 2 + 1; break; // Pulse sequence
+      case 0x15: { // Direct recording
+        pos += 5;
+        const len = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3 + len;
+        break;
+      }
+      case 0x18: case 0x19: { // CSW / Generalized data
+        const len = b[pos]|(b[pos+1]<<8)|(b[pos+2]<<16)|(b[pos+3]<<24); pos += 4 + len;
+        break;
+      }
+      case 0x20: pos += 2; break; // Pause
+      case 0x21: pos += b[pos] + 1; break; // Group start
+      case 0x22: break; // Group end
+      case 0x23: pos += 2; break; // Jump to block
+      case 0x24: pos += 2; break; // Loop start
+      case 0x25: break; // Loop end
+      case 0x26: pos += (b[pos]|(b[pos+1]<<8)) * 2 + 2; break; // Call sequence
+      case 0x27: break; // Return from sequence
+      case 0x28: pos += (b[pos]|(b[pos+1]<<8)) * 3 + 2; break; // Select block
+      case 0x2A: pos += 4; break; // Stop tape if 48K
+      case 0x2B: pos += 4; break; // Set signal level
+      case 0x30: pos += b[pos] + 1; break; // Text description
+      case 0x31: pos += b[pos+1] + 2; break; // Message block
+      case 0x32: { const len = b[pos]|(b[pos+1]<<8); pos += 2 + len; break; } // Archive info
+      case 0x33: pos += b[pos] * 3 + 1; break; // Hardware type
+      case 0x35: { const len = b[pos+10]|(b[pos+11]<<8)|(b[pos+12]<<16)|(b[pos+13]<<24); pos += 14 + len; break; } // Custom info
+      case 0x4B: { const len = b[pos]|(b[pos+1]<<8)|(b[pos+2]<<16)|(b[pos+3]<<24); pos += 4 + len; break; } // Kansas City
+      case 0x5A: pos += 9; break; // Glue block
+      default:
+        console.warn('Unknown TZX block 0x' + id.toString(16) + ' at pos ' + pos + ', stopping parse');
+        pos = b.length; // can't safely skip unknown blocks
+    }
+  }
+
+  // Build TAP buffer: each block prefixed with 2-byte length
+  let total = 0;
+  for (const blk of blocks) total += 2 + blk.length;
+  const tap = new Uint8Array(total);
+  let off = 0;
+  for (const blk of blocks) {
+    tap[off++] = blk.length & 0xFF;
+    tap[off++] = (blk.length >> 8) & 0xFF;
+    tap.set(blk, off); off += blk.length;
+  }
+  return tap.buffer;
+}
+
+// ============================================================
+// ZIP EXTRACTOR  (store + deflate-raw via DecompressionStream)
+// ============================================================
+async function extractZip(data) {
+  const b = new Uint8Array(data);
+  const files = [];
+  let pos = 0;
+
+  while (pos < b.length - 4) {
+    // Local file header signature: PK\x03\x04
+    if (b[pos] !== 0x50 || b[pos+1] !== 0x4B || b[pos+2] !== 0x03 || b[pos+3] !== 0x04) break;
+
+    const flags       = b[pos+6]  | (b[pos+7]  << 8);
+    const compression = b[pos+8]  | (b[pos+9]  << 8);
+    let compSize      = b[pos+18] | (b[pos+19] << 8) | (b[pos+20] << 16) | (b[pos+21] << 24);
+    const nameLen     = b[pos+26] | (b[pos+27] << 8);
+    const extraLen    = b[pos+28] | (b[pos+29] << 8);
+    const name        = new TextDecoder().decode(b.slice(pos+30, pos+30+nameLen));
+
+    const dataStart = pos + 30 + nameLen + extraLen;
+
+    // If data descriptor flag is set and sizes are zero, scan for next PK header
+    if ((flags & 0x08) && compSize === 0) {
+      let scan = dataStart;
+      while (scan < b.length - 4) {
+        if (b[scan]===0x50&&b[scan+1]===0x4B&&(b[scan+2]===0x07||b[scan+2]===0x03)) break;
+        scan++;
+      }
+      compSize = scan - dataStart;
+    }
+
+    const compressed = b.slice(dataStart, dataStart + compSize);
+    let fileData;
+
+    if (compression === 0) {
+      fileData = compressed.buffer.slice(compressed.byteOffset, compressed.byteOffset + compressed.byteLength);
+    } else if (compression === 8 && typeof DecompressionStream !== 'undefined') {
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      writer.write(compressed);
+      writer.close();
+      const chunks = [];
+      const reader = ds.readable.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const total = chunks.reduce((s, c) => s + c.length, 0);
+      const out = new Uint8Array(total);
+      let off = 0;
+      for (const c of chunks) { out.set(c, off); off += c.length; }
+      fileData = out.buffer;
+    } else {
+      console.warn('Unsupported ZIP compression method:', compression, 'for', name);
+      pos = dataStart + compSize;
+      continue;
+    }
+
+    files.push({ name: name.toLowerCase(), data: fileData });
+    pos = dataStart + compSize;
+
+    // Skip optional data descriptor (PK\x07\x08)
+    if (b[pos]===0x50&&b[pos+1]===0x4B&&b[pos+2]===0x07&&b[pos+3]===0x08) pos += 16;
+  }
+
+  return files;
+}
+
+// ============================================================
+// TAPE LOADING (TAP / TZX / ZIP)
+// ============================================================
+async function loadTapeFile(data, filename) {
   if (!wasm) return;
   initAudio();
-  if (!romLoaded) {
-    setStatus('Please load a ROM first!');
+  if (!romLoaded) { setStatus('Please load a ROM first!'); return; }
+
+  const name = (filename || '').toLowerCase();
+  let tapData;
+
+  try {
+    if (name.endsWith('.zip')) {
+      const files = await extractZip(data);
+      // Find first .tap or .tzx inside the ZIP
+      const entry = files.find(f => f.name.endsWith('.tap') || f.name.endsWith('.tzx'));
+      if (!entry) { setStatus('No .tap or .tzx file found inside ZIP.'); return; }
+      tapData = entry.name.endsWith('.tzx') ? tzxToTap(entry.data) : entry.data;
+      setStatus(`Loaded ${entry.name} from ZIP.`);
+    } else if (name.endsWith('.tzx')) {
+      tapData = tzxToTap(data);
+      setStatus('TZX loaded. Type LOAD "" and press Enter.');
+    } else {
+      tapData = data; // plain TAP
+      setStatus('TAP loaded. Type LOAD "" and press Enter.');
+    }
+  } catch (e) {
+    setStatus('Error loading tape: ' + e.message);
+    console.error(e);
     return;
   }
-  const bytes = new Uint8Array(data);
-  for (let i = 0; i < bytes.length; i++) {
-    wasm.loadTapData(i, bytes[i]);
-  }
+
+  const bytes = new Uint8Array(tapData);
+  for (let i = 0; i < bytes.length; i++) wasm.loadTapData(i, bytes[i]);
   wasm.setTapSize(bytes.length);
-  setStatus('TAP loaded (' + bytes.length + ' bytes). Type LOAD "" and press Enter.');
 }
 
 // ============================================================
@@ -378,7 +550,7 @@ document.getElementById('tap-input').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => loadTAP(reader.result);
+  reader.onload = () => loadTapeFile(reader.result, file.name);
   reader.readAsArrayBuffer(file);
 });
 
@@ -418,17 +590,17 @@ document.addEventListener('drop', (e) => {
   if (name.endsWith('.rom') || name.endsWith('.bin')) {
     reader.onload = () => loadROM(reader.result);
     reader.readAsArrayBuffer(file);
-  } else if (name.endsWith('.tap')) {
-    reader.onload = () => loadTAP(reader.result);
+  } else if (name.endsWith('.tap') || name.endsWith('.tzx') || name.endsWith('.zip')) {
+    reader.onload = () => loadTapeFile(reader.result, file.name);
     reader.readAsArrayBuffer(file);
   } else {
-    // Try to auto-detect: if 16384 bytes, probably ROM, otherwise TAP
+    // Auto-detect by size: 16384 = ROM, otherwise try as tape
     reader.onload = () => {
       const data = new Uint8Array(reader.result);
       if (data.length === 16384) {
         loadROM(reader.result);
       } else {
-        loadTAP(reader.result);
+        loadTapeFile(reader.result, file.name);
       }
     };
     reader.readAsArrayBuffer(file);
