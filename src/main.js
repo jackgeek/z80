@@ -161,7 +161,11 @@ let hpfPrevOutput = 0;
 const HPF_ALPHA = 0.995; // cutoff ~35Hz at 44100Hz
 
 function initAudio() {
-  if (audioCtx) return;
+  if (audioCtx) {
+    // iOS suspends context when page loses focus — always try to resume
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return;
+  }
   audioCtx = new (window.AudioContext || window.webkitAudioContext)({
     sampleRate: AUDIO_SAMPLE_RATE
   });
@@ -186,10 +190,22 @@ function initAudio() {
     }
   };
   audioScriptNode.connect(audioCtx.destination);
+
+  // iOS requires an explicit resume after creation
+  audioCtx.resume();
 }
+
+// Resume audio on any user interaction (required by iOS Safari)
+['touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }, { passive: true });
+});
 
 function pushAudioFrame() {
   if (!audioCtx || !wasm) return;
+  // Don't queue audio if context isn't running (iOS still suspended)
+  if (audioCtx.state !== 'running') return;
 
   const audioBase = wasm.getAudioBaseAddr();
   const sampleCount = wasm.getAudioSampleCount();

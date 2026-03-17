@@ -3,8 +3,13 @@
 (function () {
 
   // Expose key functions globally so vkeyboard can call into the emulator
-  window.specKeyDown = (row, bit) => { if (typeof wasm !== 'undefined' && wasm) wasm.keyDown(row, bit); };
-  window.specKeyUp   = (row, bit) => { if (typeof wasm !== 'undefined' && wasm) wasm.keyUp(row, bit); };
+  window.specKeyDown = (row, bit) => {
+    if (typeof initAudio !== 'undefined') initAudio(); // unlock iOS audio on first key tap
+    if (typeof wasm !== 'undefined' && wasm) wasm.keyDown(row, bit);
+  };
+  window.specKeyUp = (row, bit) => {
+    if (typeof wasm !== 'undefined' && wasm) wasm.keyUp(row, bit);
+  };
 
   // ── Keyboard layout ────────────────────────────────────────────────────────
   // Each key: { label, row, bit, [sym], [wide] }
