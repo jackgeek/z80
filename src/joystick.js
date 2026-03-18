@@ -30,6 +30,7 @@
   const cubeEl    = document.getElementById('cube-canvas');
   const fireZone  = document.getElementById('js-fire-zone');
   const dpadZone  = document.getElementById('js-dpad-zone');
+  const dpadEl    = document.getElementById('js-dpad');
   const arms      = {};
   document.querySelectorAll('.js-dpad-arm').forEach(el => { arms[el.dataset.dir] = el; });
 
@@ -87,8 +88,8 @@
     // Use the most recently moved dpad touch
     const touch = dpadTouches.values().next().value;
 
-    // Compute direction relative to the visual dpad center
-    const rect = dpadZone.getBoundingClientRect();
+    // Compute direction relative to the visual dpad cross, not the full zone
+    const rect = dpadEl.getBoundingClientRect();
     const cx = rect.left + rect.width  * 0.5;
     const cy = rect.top  + rect.height * 0.5;
     const dx = touch.x - cx;
