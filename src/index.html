@@ -274,14 +274,15 @@
     pointer-events: none; /* zones get events individually */
   }
 
-  /* Both zones fill 50% of screen height fully */
+  /* Both zones fill 50% of screen width; controls pinned to bottom corners
+     so they don't overlap the main display. */
   #js-dpad-zone, #js-fire-zone {
     height: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-end;
     touch-action: none;
     pointer-events: none; /* enabled by JS only in fullscreen */
+    padding: 0 clamp(10px, 3vw, 28px) clamp(18px, 5vh, 48px);
   }
   body.js-fullscreen #js-dpad-zone,
   body.js-fullscreen #js-fire-zone {
@@ -291,6 +292,7 @@
   /* Fire zone — right 50% */
   #js-fire-zone {
     width: 50%;
+    justify-content: flex-end;
     background: rgba(255, 80, 80, 0.06);
   }
   #js-fire-btn {
@@ -333,6 +335,7 @@
   /* D-pad zone — left 50% */
   #js-dpad-zone {
     width: 50%;
+    justify-content: flex-start;
     background: rgba(255,255,255,0.04);
   }
 
@@ -379,7 +382,7 @@
 </style>
 </head>
 <body>
-  <div id="version">v1.0.6</div>
+  <div id="version">v1.0.7</div>
   <h1>ZX Spectrum 48K</h1>
 
   <div id="main-area">
