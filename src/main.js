@@ -300,9 +300,9 @@ function tzxToTap(data) {
       case 0x25: break; // Loop end
       case 0x26: pos += (b[pos]|(b[pos+1]<<8)) * 2 + 2; break; // Call sequence
       case 0x27: break; // Return from sequence
-      case 0x28: pos += (b[pos]|(b[pos+1]<<8)) * 3 + 2; break; // Select block
+      case 0x28: { const len = b[pos]|(b[pos+1]<<8); pos += 2 + len; break; } // Select block
       case 0x2A: pos += 4; break; // Stop tape if 48K
-      case 0x2B: pos += 4; break; // Set signal level
+      case 0x2B: { const len = b[pos]|(b[pos+1]<<8)|(b[pos+2]<<16)|(b[pos+3]<<24); pos += 4 + len; break; } // Set signal level
       case 0x30: pos += b[pos] + 1; break; // Text description
       case 0x31: pos += b[pos+1] + 2; break; // Message block
       case 0x32: { const len = b[pos]|(b[pos+1]<<8); pos += 2 + len; break; } // Archive info
@@ -327,6 +327,192 @@ function tzxToTap(data) {
     tap.set(blk, off); off += blk.length;
   }
   return tap.buffer;
+}
+
+// ============================================================
+// TZX → PULSE STREAM CONVERTER
+// Converts TZX blocks into an array of pulse durations (T-states)
+// for accurate tape signal emulation via port 0xFE bit 6.
+// Also tracks which pulse index each data block ends at so the
+// ROM trap can stay in sync with pulse playback.
+// ============================================================
+function tzxToPulses(data) {
+  const b = new Uint8Array(data);
+  const sig = String.fromCharCode(b[0],b[1],b[2],b[3],b[4],b[5],b[6]);
+  if (sig !== 'ZXTape!') throw new Error('Not a valid TZX file');
+
+  const pulses = [];
+  // Pulse index where each data block's pulses END (for ROM trap sync)
+  const dataBlockEndPulses = [];
+  let pos = 10;
+
+  // Helper: add pulses for each bit of a data byte (MSB first per spec)
+  function addDataBits(byte, zeroPulse, onePulse, numBits) {
+    for (let bit = 7; bit >= 8 - numBits; bit--) {
+      const p = (byte >> bit) & 1 ? onePulse : zeroPulse;
+      pulses.push(p);
+      pulses.push(p);
+    }
+  }
+
+  // Helper: add pulses for a complete data block (bytes)
+  function addDataBlock(offset, length, zeroPulse, onePulse, usedBitsLastByte) {
+    for (let i = 0; i < length - 1; i++) {
+      addDataBits(b[offset + i], zeroPulse, onePulse, 8);
+    }
+    if (length > 0) {
+      addDataBits(b[offset + length - 1], zeroPulse, onePulse, usedBitsLastByte);
+    }
+  }
+
+  // Helper: add a LOW-level pause per TZX spec.
+  // Spec: "At the end of a Pause block the current pulse level is low"
+  // and "the first pulse will therefore not immediately produce an edge."
+  // We ensure the level is LOW before the pause, and LOW after it.
+  function addPause(ms) {
+    if (ms <= 0) return;
+    // Transition to LOW if currently HIGH (odd pulse count = HIGH)
+    if (pulses.length & 1) {
+      pulses.push(1); // 1 T-state transition HIGH→LOW
+    }
+    // LOW-level silence for the pause duration
+    pulses.push(ms * 3500); // after this, level toggles to HIGH
+    // Restore level to LOW (spec requires LOW after pause)
+    pulses.push(1); // 1 T-state transition HIGH→LOW
+  }
+
+  while (pos < b.length) {
+    const id = b[pos++];
+
+    switch (id) {
+      case 0x10: { // Standard speed data block
+        const pause = b[pos] | (b[pos+1] << 8); pos += 2;
+        const len = b[pos] | (b[pos+1] << 8); pos += 2;
+        const flagByte = b[pos];
+        // Pilot tone
+        const pilotCount = flagByte < 0x80 ? 8063 : 3223;
+        for (let i = 0; i < pilotCount; i++) pulses.push(2168);
+        // Sync pulses
+        pulses.push(667);
+        pulses.push(735);
+        // Data bits (standard timings: zero=855, one=1710)
+        addDataBlock(pos, len, 855, 1710, 8);
+        pos += len;
+        addPause(pause);
+        // Track end position for ROM trap sync
+        dataBlockEndPulses.push(pulses.length);
+        break;
+      }
+
+      case 0x11: { // Turbo speed data block
+        const pilotPulse = b[pos] | (b[pos+1] << 8); pos += 2;
+        const sync1 = b[pos] | (b[pos+1] << 8); pos += 2;
+        const sync2 = b[pos] | (b[pos+1] << 8); pos += 2;
+        const zeroPulse = b[pos] | (b[pos+1] << 8); pos += 2;
+        const onePulse = b[pos] | (b[pos+1] << 8); pos += 2;
+        const pilotLen = b[pos] | (b[pos+1] << 8); pos += 2;
+        const usedBits = b[pos++] || 8;
+        const pause = b[pos] | (b[pos+1] << 8); pos += 2;
+        const dataLen = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
+        for (let i = 0; i < pilotLen; i++) pulses.push(pilotPulse);
+        pulses.push(sync1);
+        pulses.push(sync2);
+        addDataBlock(pos, dataLen, zeroPulse, onePulse, usedBits);
+        pos += dataLen;
+        addPause(pause);
+        dataBlockEndPulses.push(pulses.length);
+        break;
+      }
+
+      case 0x12: { // Pure tone
+        const pulseLen = b[pos] | (b[pos+1] << 8); pos += 2;
+        const count = b[pos] | (b[pos+1] << 8); pos += 2;
+        for (let i = 0; i < count; i++) pulses.push(pulseLen);
+        break;
+      }
+
+      case 0x13: { // Pulse sequence
+        const n = b[pos++];
+        for (let i = 0; i < n; i++) {
+          pulses.push(b[pos] | (b[pos+1] << 8));
+          pos += 2;
+        }
+        break;
+      }
+
+      case 0x14: { // Pure data block
+        const zeroPulse = b[pos] | (b[pos+1] << 8); pos += 2;
+        const onePulse = b[pos] | (b[pos+1] << 8); pos += 2;
+        const usedBits = b[pos++] || 8;
+        const pause = b[pos] | (b[pos+1] << 8); pos += 2;
+        const dataLen = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
+        addDataBlock(pos, dataLen, zeroPulse, onePulse, usedBits);
+        pos += dataLen;
+        addPause(pause);
+        dataBlockEndPulses.push(pulses.length);
+        break;
+      }
+
+      case 0x15: { // Direct recording
+        const tstPerSample = b[pos] | (b[pos+1] << 8); pos += 2;
+        const pause = b[pos] | (b[pos+1] << 8); pos += 2;
+        const usedBits = b[pos++] || 8;
+        const dataLen = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
+        let lastLevel = 0, currentPulse = 0;
+        for (let i = 0; i < dataLen; i++) {
+          const byte = b[pos + i];
+          const bits = (i === dataLen - 1) ? usedBits : 8;
+          for (let bit = 7; bit >= 8 - bits; bit--) {
+            const level = (byte >> bit) & 1;
+            if (level !== lastLevel) {
+              if (currentPulse > 0) pulses.push(currentPulse);
+              currentPulse = tstPerSample;
+              lastLevel = level;
+            } else {
+              currentPulse += tstPerSample;
+            }
+          }
+        }
+        if (currentPulse > 0) pulses.push(currentPulse);
+        pos += dataLen;
+        addPause(pause);
+        break;
+      }
+
+      // Metadata / control blocks — skip (no pulses)
+      case 0x18: case 0x19: {
+        const len = b[pos]|(b[pos+1]<<8)|(b[pos+2]<<16)|(b[pos+3]<<24); pos += 4 + len;
+        break;
+      }
+      case 0x20: { // Pause / stop
+        const pause = b[pos] | (b[pos+1] << 8); pos += 2;
+        addPause(pause);
+        break;
+      }
+      case 0x21: pos += b[pos] + 1; break;
+      case 0x22: break;
+      case 0x23: pos += 2; break;
+      case 0x24: pos += 2; break;
+      case 0x25: break;
+      case 0x26: pos += (b[pos]|(b[pos+1]<<8)) * 2 + 2; break;
+      case 0x27: break;
+      case 0x28: { const len = b[pos]|(b[pos+1]<<8); pos += 2 + len; break; }
+      case 0x2A: pos += 4; break;
+      case 0x2B: { const len = b[pos]|(b[pos+1]<<8)|(b[pos+2]<<16)|(b[pos+3]<<24); pos += 4 + len; break; }
+      case 0x30: pos += b[pos] + 1; break;
+      case 0x31: pos += b[pos+1] + 2; break;
+      case 0x32: { const len = b[pos]|(b[pos+1]<<8); pos += 2 + len; break; }
+      case 0x33: pos += b[pos] * 3 + 1; break;
+      case 0x35: { const len = b[pos+10]|(b[pos+11]<<8)|(b[pos+12]<<16)|(b[pos+13]<<24); pos += 14 + len; break; }
+      case 0x4B: { const len = b[pos]|(b[pos+1]<<8)|(b[pos+2]<<16)|(b[pos+3]<<24); pos += 4 + len; break; }
+      case 0x5A: pos += 9; break;
+      default:
+        console.warn('TZX pulses: unknown block 0x' + id.toString(16) + ', stopping');
+        pos = b.length;
+    }
+  }
+
+  return { pulses, dataBlockEndPulses };
 }
 
 // ============================================================
@@ -401,6 +587,27 @@ async function extractZip(data) {
 // ============================================================
 // TAPE LOADING (TAP / TZX / ZIP)
 // ============================================================
+// Write pulse stream to WASM memory and set up block boundaries
+function loadPulseData(pulseResult) {
+  const { pulses, dataBlockEndPulses } = pulseResult;
+  // Write pulse durations as u32 little-endian
+  const buf = new ArrayBuffer(pulses.length * 4);
+  const view = new DataView(buf);
+  for (let i = 0; i < pulses.length; i++) {
+    view.setUint32(i * 4, pulses[i], true);
+  }
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) wasm.loadPulseByte(i, bytes[i]);
+
+  // Write block boundary pulse indices
+  for (let i = 0; i < dataBlockEndPulses.length && i < 256; i++) {
+    wasm.setBlockBound(i, dataBlockEndPulses[i]);
+  }
+  wasm.setBlockBoundsCount(Math.min(dataBlockEndPulses.length, 256));
+  wasm.setPulseCount(pulses.length);
+  console.log(`Pulse tape: ${pulses.length} pulses, ${dataBlockEndPulses.length} data blocks`);
+}
+
 async function loadTapeFile(data, filename) {
   if (!wasm) return;
   initAudio();
@@ -408,16 +615,21 @@ async function loadTapeFile(data, filename) {
 
   const name = (filename || '').toLowerCase();
   let tapData;
+  let isTzx = false;
+  let tzxSource = null; // raw TZX ArrayBuffer for pulse generation
 
   try {
     if (name.endsWith('.zip')) {
       const files = await extractZip(data);
-      // Find first .tap or .tzx inside the ZIP
       const entry = files.find(f => f.name.endsWith('.tap') || f.name.endsWith('.tzx'));
       if (!entry) { setStatus('No .tap or .tzx file found inside ZIP.'); return; }
-      tapData = entry.name.endsWith('.tzx') ? tzxToTap(entry.data) : entry.data;
+      isTzx = entry.name.endsWith('.tzx');
+      if (isTzx) tzxSource = entry.data;
+      tapData = isTzx ? tzxToTap(entry.data) : entry.data;
       setStatus(`Loaded ${entry.name} from ZIP.`);
     } else if (name.endsWith('.tzx')) {
+      isTzx = true;
+      tzxSource = data;
       tapData = tzxToTap(data);
       setStatus('TZX loaded. Type LOAD "" and press Enter.');
     } else {
@@ -430,9 +642,20 @@ async function loadTapeFile(data, filename) {
     return;
   }
 
+  // Load TAP data for ROM trap (instant loading of standard blocks)
   const bytes = new Uint8Array(tapData);
   for (let i = 0; i < bytes.length; i++) wasm.loadTapData(i, bytes[i]);
   wasm.setTapSize(bytes.length);
+
+  // For TZX files, also generate pulse stream for custom loader support
+  if (isTzx && tzxSource) {
+    try {
+      const pulseResult = tzxToPulses(tzxSource);
+      loadPulseData(pulseResult);
+    } catch (e) {
+      console.warn('Pulse generation failed, ROM trap only:', e);
+    }
+  }
 }
 
 // ============================================================
@@ -477,6 +700,10 @@ function frameLoop(timestamp) {
   lastFrameTime = timestamp;
 
   try {
+    // Turbo: run extra frames during pulse tape playback (skip render/audio)
+    if (wasm.isTapePlaying()) {
+      for (let i = 0; i < 19; i++) wasm.frame();
+    }
     wasm.frame();
     renderFrame();
     pushAudioFrame();

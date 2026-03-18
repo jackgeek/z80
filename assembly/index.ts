@@ -14,6 +14,11 @@ const SCREEN_BASE: u32 = 0x110000;  // 1MB+64K: Screen pixel buffer (256*192*4)
 const TAP_BASE: u32    = 0x140000;  // 1MB+256K: TAP file buffer
 const TAP_MAX: u32     = 0x080000;  // 512KB max TAP size
 
+// Pulse-based tape playback buffer (u32 durations, for TZX support)
+const PULSE_BASE: u32       = 0x200000;  // 2MB: Pulse duration buffer
+const PULSE_MAX: u32        = 0x100000;  // 1M pulses max (4MB)
+const BLOCK_BOUNDS_BASE: u32 = 0x1F0000; // Block boundary pulse indices (max 256 × u32)
+
 // ============================================================
 // FLAGS
 // ============================================================
@@ -124,6 +129,15 @@ let tapSize: u32 = 0;
 let tapPos: u32 = 0;
 let tapLoaded: bool = false;
 
+// Pulse-based tape playback state (for TZX custom loaders)
+let pulseCount: u32 = 0;       // total number of pulses
+let pulsePos: u32 = 0;         // current pulse index
+let pulseProgress: u32 = 0;    // T-states accumulated in current pulse
+let tapeLevel: u8 = 0;         // current tape signal level (0 or 1)
+let tapePlaying: bool = false;  // whether pulse tape is active
+let blockBoundsCount: u32 = 0; // number of block boundary entries
+let tapBlockIndex: u32 = 0;    // which TAP block the ROM trap has loaded next
+
 // Kempston joystick (port 0x1F): bit0=right, bit1=left, bit2=down, bit3=up, bit4=fire
 let kempston: u8 = 0;
 
@@ -227,8 +241,10 @@ function portIn(port: u16): u8 {
         result &= unchecked(keyboardState[row]);
       }
     }
-    // Bits 5-7: bit 6 = ear input (0), bits 5,7 = 1
-    result = (result & 0x1F) | 0xA0;
+    // Bits 5-7: bit 6 = ear input (tape level), bits 5,7 = 1
+    // Tape level is advanced continuously in the frame loop, not lazily here.
+    // Just read the current level.
+    result = (result & 0x1F) | 0xA0 | (<u8>tapeLevel << 6);
     return result;
   }
   // Kempston joystick (port 0x1F)
@@ -1534,7 +1550,7 @@ function trapTapeLoad(): i32 {
 
   if (flagByte == A) {
     // Flag matches - load data
-    let dataLen: u32 = blockLen - 2; // subtract flag and checksum
+    let dataLen: u32 = blockLen > 2 ? blockLen - 2 : 0; // subtract flag and checksum (guard underflow)
     let loadLen: u16 = <u16>(dataLen < <u32>getDE() ? dataLen : <u32>getDE());
 
     for (let i: u16 = 0; i < loadLen; i++) {
@@ -1545,6 +1561,16 @@ function trapTapeLoad(): i32 {
     IX = (IX + loadLen) & 0xFFFF;
     setDE(0);
     F |= FLAG_C; // success
+
+    // Advance pulse playback past this block's pulses (keep in sync)
+    if (pulseCount > 0 && tapBlockIndex < blockBoundsCount) {
+      let newPos: u32 = load<u32>(BLOCK_BOUNDS_BASE + (tapBlockIndex << 2));
+      pulsePos = newPos;
+      pulseProgress = 0;
+      tapeLevel = <u8>(newPos & 1); // correct polarity: each pulse toggles from initial 0
+      tapBlockIndex++;
+      tapePlaying = true; // start pulse playback now that standard blocks are loaded
+    }
   } else {
     // Flag doesn't match, skip block and try next
     tapPos += blockLen;
@@ -1662,6 +1688,15 @@ export function init(): void {
   tapPos = 0;
   tapSize = 0;
   tapLoaded = false;
+
+  // Reset pulse tape state
+  pulseCount = 0;
+  pulsePos = 0;
+  pulseProgress = 0;
+  tapeLevel = 0;
+  tapePlaying = false;
+  blockBoundsCount = 0;
+  tapBlockIndex = 0;
 }
 
 export function frame(): void {
@@ -1674,6 +1709,25 @@ export function frame(): void {
     let c = execute();
     if (c <= 0) c = 4; // safety: ensure forward progress
     cycles += c;
+
+    // Advance pulse tape playback in lockstep with CPU
+    if (tapePlaying) {
+      let remain: u32 = <u32>c;
+      while (remain > 0 && pulsePos < pulseCount) {
+        let dur: u32 = load<u32>(PULSE_BASE + (pulsePos << 2));
+        let left: u32 = dur - pulseProgress;
+        if (remain >= left) {
+          remain -= left;
+          pulseProgress = 0;
+          pulsePos++;
+          tapeLevel ^= 1;
+        } else {
+          pulseProgress += remain;
+          remain = 0;
+        }
+      }
+      if (pulsePos >= pulseCount) tapePlaying = false;
+    }
 
     // Record audio samples at regular intervals
     audioCycleAccum += c;
@@ -1747,6 +1801,37 @@ export function setKempston(v: u8): void { kempston = v; }
 export function getAudioBaseAddr(): u32 {
   return AUDIO_BASE;
 }
+
+// Pulse tape loading (TZX support)
+export function loadPulseByte(offset: u32, val: u8): void {
+  if (offset < PULSE_MAX << 2) {
+    store<u8>(PULSE_BASE + offset, val);
+  }
+}
+
+export function setPulseCount(count: u32): void {
+  pulseCount = count;
+  pulsePos = 0;
+  pulseProgress = 0;
+  tapeLevel = 0;
+  tapePlaying = false; // don't start playback yet; ROM trap will start it after standard blocks
+  tapBlockIndex = 0;
+}
+
+export function setBlockBound(index: u32, pulseIndex: u32): void {
+  if (index < 256) {
+    store<u32>(BLOCK_BOUNDS_BASE + (index << 2), pulseIndex);
+  }
+}
+
+export function setBlockBoundsCount(count: u32): void {
+  blockBoundsCount = count;
+}
+
+export function isTapePlaying(): bool {
+  return tapePlaying;
+}
+
 
 export function getAudioSampleCount(): i32 {
   return audioSampleIndex;
