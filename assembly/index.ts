@@ -1562,12 +1562,23 @@ function trapTapeLoad(): i32 {
     setDE(0);
     F |= FLAG_C; // success
 
-    // Advance pulse playback past this block's pulses (keep in sync)
+    // Advance pulse playback past this block's data pulses (keep in sync).
+    // Block bounds point to just before the pause, so the inter-block silence
+    // is preserved — custom loaders (e.g. Speedlock) need the silence gap
+    // to detect pilot tone onset, just like on real hardware.
     if (pulseCount > 0 && tapBlockIndex < blockBoundsCount) {
       let newPos: u32 = load<u32>(BLOCK_BOUNDS_BASE + (tapBlockIndex << 2));
       pulsePos = newPos;
       pulseProgress = 0;
       tapeLevel = <u8>(newPos & 1); // correct polarity: each pulse toggles from initial 0
+      // Skip past any short transition pulses (≤100 T-states) added by addPause
+      // to land on the actual silence pulse, ensuring tapeLevel is LOW (silence)
+      while (pulsePos < pulseCount) {
+        let dur: u32 = load<u32>(PULSE_BASE + (pulsePos << 2));
+        if (dur > 100) break;
+        pulsePos++;
+        tapeLevel ^= 1;
+      }
       tapBlockIndex++;
       tapePlaying = true; // start pulse playback now that standard blocks are loaded
     }

@@ -398,9 +398,10 @@ function tzxToPulses(data) {
         // Data bits (standard timings: zero=855, one=1710)
         addDataBlock(pos, len, 855, 1710, 8);
         pos += len;
-        addPause(pause);
-        // Track end position for ROM trap sync
+        // Track end position BEFORE pause so ROM trap sync preserves
+        // the silence gap that custom loaders need to detect pilot onset
         dataBlockEndPulses.push(pulses.length);
+        addPause(pause);
         break;
       }
 
@@ -419,8 +420,8 @@ function tzxToPulses(data) {
         pulses.push(sync2);
         addDataBlock(pos, dataLen, zeroPulse, onePulse, usedBits);
         pos += dataLen;
-        addPause(pause);
         dataBlockEndPulses.push(pulses.length);
+        addPause(pause);
         break;
       }
 
@@ -448,8 +449,8 @@ function tzxToPulses(data) {
         const dataLen = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
         addDataBlock(pos, dataLen, zeroPulse, onePulse, usedBits);
         pos += dataLen;
-        addPause(pause);
         dataBlockEndPulses.push(pulses.length);
+        addPause(pause);
         break;
       }
 
