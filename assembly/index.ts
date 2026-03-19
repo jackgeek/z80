@@ -1813,6 +1813,10 @@ export function getAudioBaseAddr(): u32 {
   return AUDIO_BASE;
 }
 
+export function getPulseBaseAddr(): u32 {
+  return PULSE_BASE;
+}
+
 // Pulse tape loading (TZX support)
 export function loadPulseByte(offset: u32, val: u8): void {
   if (offset < PULSE_MAX << 2) {
@@ -1841,6 +1845,22 @@ export function setBlockBoundsCount(count: u32): void {
 
 export function isTapePlaying(): bool {
   return tapePlaying;
+}
+
+export function getPulsePos(): u32 {
+  return pulsePos;
+}
+
+export function getTapeLevel(): u8 {
+  return tapeLevel;
+}
+
+export function getTapPos(): u32 {
+  return tapPos;
+}
+
+export function getTapSize(): u32 {
+  return tapSize;
 }
 
 
@@ -1872,3 +1892,6 @@ export function getHL2(): u16 { return (<u16>H << 8) | <u16>L; }
 export function getIX(): u16 { return IX; }
 export function getIY(): u16 { return IY; }
 export function readMem(addr: u16): u8 { return readByte(addr); }
+export function getIM(): u8 { return <u8>IM; }
+export function getIFF1(): u8 { return IFF1 ? 1 : 0; }
+export function getI(): u8 { return I_reg; }

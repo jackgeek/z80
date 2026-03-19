@@ -11,6 +11,7 @@ let paused = false;
 let romLoaded = false;
 let animFrameId = null;
 let cachedRomData = null; // keep a copy for resets
+let totalPulseCount = 0; // total pulses in current TZX
 
 // Audio
 let audioCtx = null;
@@ -275,10 +276,10 @@ function tzxToTap(data) {
         blocks.push(b.slice(pos, pos + len)); pos += len;
         break;
       }
-      case 0x14: { // Pure data block
+      case 0x14: { // Pure data block — skip for TAP (no pilot/sync/flag; custom loaders only)
         pos += 7; // zero/one bit timings + used bits + pause
         const len = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
-        blocks.push(b.slice(pos, pos + len)); pos += len;
+        pos += len;
         break;
       }
       case 0x12: pos += 4;  break; // Pure tone
@@ -441,7 +442,7 @@ function tzxToPulses(data) {
         break;
       }
 
-      case 0x14: { // Pure data block
+      case 0x14: { // Pure data block — generate pulses but don't track as ROM-loadable
         const zeroPulse = b[pos] | (b[pos+1] << 8); pos += 2;
         const onePulse = b[pos] | (b[pos+1] << 8); pos += 2;
         const usedBits = b[pos++] || 8;
@@ -449,7 +450,8 @@ function tzxToPulses(data) {
         const dataLen = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
         addDataBlock(pos, dataLen, zeroPulse, onePulse, usedBits);
         pos += dataLen;
-        dataBlockEndPulses.push(pulses.length);
+        // Don't push to dataBlockEndPulses — 0x14 blocks have no pilot/sync/flag
+        // and are only loadable via pulse-level playback (custom loaders like Speedlock)
         addPause(pause);
         break;
       }
@@ -591,14 +593,10 @@ async function extractZip(data) {
 // Write pulse stream to WASM memory and set up block boundaries
 function loadPulseData(pulseResult) {
   const { pulses, dataBlockEndPulses } = pulseResult;
-  // Write pulse durations as u32 little-endian
-  const buf = new ArrayBuffer(pulses.length * 4);
-  const view = new DataView(buf);
-  for (let i = 0; i < pulses.length; i++) {
-    view.setUint32(i * 4, pulses[i], true);
-  }
-  const bytes = new Uint8Array(buf);
-  for (let i = 0; i < bytes.length; i++) wasm.loadPulseByte(i, bytes[i]);
+  // Write pulse durations directly to WASM memory (much faster than byte-by-byte)
+  const pulseBase = wasm.getPulseBaseAddr();
+  const dest = new Uint32Array(memory.buffer, pulseBase, pulses.length);
+  for (let i = 0; i < pulses.length; i++) dest[i] = pulses[i];
 
   // Write block boundary pulse indices
   for (let i = 0; i < dataBlockEndPulses.length && i < 256; i++) {
@@ -606,7 +604,8 @@ function loadPulseData(pulseResult) {
   }
   wasm.setBlockBoundsCount(Math.min(dataBlockEndPulses.length, 256));
   wasm.setPulseCount(pulses.length);
-  console.log(`Pulse tape: ${pulses.length} pulses, ${dataBlockEndPulses.length} data blocks`);
+  totalPulseCount = pulses.length;
+  console.log(`Pulse tape: ${pulses.length} pulses, ${dataBlockEndPulses.length} ROM-loadable blocks`);
 }
 
 async function loadTapeFile(data, filename) {
@@ -647,12 +646,14 @@ async function loadTapeFile(data, filename) {
   const bytes = new Uint8Array(tapData);
   for (let i = 0; i < bytes.length; i++) wasm.loadTapData(i, bytes[i]);
   wasm.setTapSize(bytes.length);
+  console.log(`TAP data: ${bytes.length} bytes`);
 
   // For TZX files, also generate pulse stream for custom loader support
   if (isTzx && tzxSource) {
     try {
       const pulseResult = tzxToPulses(tzxSource);
       loadPulseData(pulseResult);
+      console.log(`TZX: ${pulseResult.dataBlockEndPulses.length} ROM blocks, pulse stream ready for custom loaders`);
     } catch (e) {
       console.warn('Pulse generation failed, ROM trap only:', e);
     }
@@ -689,6 +690,9 @@ function renderFrame() {
 // ============================================================
 let lastFrameTime = 0;
 const FRAME_INTERVAL = 1000 / 50; // 20ms per frame
+let tapeDebugTimer = 0;
+let wasTapePlaying = false;
+let postTapeFrames = -1; // frames since tape playback ended (-1 = not tracking)
 
 function frameLoop(timestamp) {
   animFrameId = requestAnimationFrame(frameLoop);
@@ -701,13 +705,85 @@ function frameLoop(timestamp) {
   lastFrameTime = timestamp;
 
   try {
+    const playing = wasm.isTapePlaying();
+
     // Turbo: run extra frames during pulse tape playback (skip render/audio)
-    if (wasm.isTapePlaying()) {
+    if (playing) {
       for (let i = 0; i < 19; i++) wasm.frame();
     }
     wasm.frame();
     renderFrame();
     pushAudioFrame();
+
+    // Periodic tape diagnostics
+    if (playing || wasTapePlaying) {
+      tapeDebugTimer++;
+      if (tapeDebugTimer % 50 === 0 || (wasTapePlaying && !playing)) {
+        const pc = wasm.getPC().toString(16).padStart(4, '0');
+        const pulsePos = wasm.getPulsePos();
+        const tapPos = wasm.getTapPos();
+        const tapSize = wasm.getTapSize();
+        const level = wasm.getTapeLevel();
+        const pct = totalPulseCount ? (pulsePos / totalPulseCount * 100).toFixed(1) : '?';
+        console.log(`[tape] PC=0x${pc} pulse=${pulsePos}/${totalPulseCount} (${pct}%) tap=${tapPos}/${tapSize} level=${level} playing=${playing}`);
+        if (wasTapePlaying && !playing) {
+          console.log('[tape] Playback ended');
+          postTapeFrames = 0;
+        }
+      }
+    }
+    // Post-loading diagnostics: trace CPU state and screen memory
+    if (postTapeFrames >= 0 && postTapeFrames < 300) {
+      postTapeFrames++;
+      if (postTapeFrames === 1 || postTapeFrames === 10 || postTapeFrames === 50 || postTapeFrames === 150 || postTapeFrames === 299) {
+        const pc = wasm.getPC().toString(16).padStart(4, '0');
+        const sp = wasm.getSP().toString(16).padStart(4, '0');
+        const im = wasm.getIM();
+        const iff = wasm.getIFF1();
+        const ireg = wasm.getI().toString(16).padStart(2, '0');
+        // Check if screen memory has any data
+        let screenNonZero = 0;
+        for (let addr = 0x4000; addr < 0x5800; addr += 64) {
+          if (wasm.readMem(addr) !== 0) screenNonZero++;
+        }
+        let attrNonZero = 0;
+        for (let addr = 0x5800; addr < 0x5B00; addr += 8) {
+          if (wasm.readMem(addr) !== 0) attrNonZero++;
+        }
+        console.log(`[post-load +${postTapeFrames}] PC=0x${pc} SP=0x${sp} IM=${im} IFF1=${iff} I=0x${ireg} screen=${screenNonZero}/96 attr=${attrNonZero}/96`);
+        // Dump bytes around PC to see if it's valid Z80 code or garbage
+        let dump = [];
+        for (let i = 0; i < 16; i++) dump.push(wasm.readMem((parseInt(pc, 16) + i) & 0xFFFF).toString(16).padStart(2, '0'));
+        console.log(`[post-load +${postTapeFrames}] code@PC: ${dump.join(' ')}`);
+      }
+      // One-time: verify pulse data integrity at key positions
+      if (postTapeFrames === 1 && totalPulseCount > 0) {
+        const pulseBase = wasm.getPulseBaseAddr();
+        const pview = new Uint32Array(memory.buffer, pulseBase, Math.min(totalPulseCount, 50000));
+        // Check first few pulses of Speedlock pilot (should be 2165 after standard blocks + pause)
+        // Find first 2165 pulse after the standard block pulses
+        let pilotStart = -1;
+        for (let i = 34000; i < Math.min(35000, pview.length); i++) {
+          if (pview[i] === 2165) { pilotStart = i; break; }
+        }
+        if (pilotStart >= 0) {
+          let sample = [];
+          for (let i = 0; i < 20; i++) sample.push(pview[pilotStart + i]);
+          console.log(`[pulse-verify] Speedlock pilot starts at pulse ${pilotStart}: ${sample.join(', ')}`);
+        }
+        // Check data block area - find first 564 or 1129 pulse
+        let dataStart = -1;
+        for (let i = pilotStart || 34000; i < Math.min(50000, pview.length); i++) {
+          if (pview[i] === 564 || pview[i] === 1129) { dataStart = i; break; }
+        }
+        if (dataStart >= 0) {
+          let sample = [];
+          for (let i = 0; i < 30; i++) sample.push(pview[dataStart + i]);
+          console.log(`[pulse-verify] Speedlock data starts at pulse ${dataStart}: ${sample.join(', ')}`);
+        }
+      }
+    }
+    wasTapePlaying = playing;
   } catch (e) {
     console.error('Emulation error:', e);
     console.error('PC was:', wasm.getPC ? wasm.getPC().toString(16) : 'unknown');
