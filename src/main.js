@@ -17,8 +17,11 @@ let audioCtx = null;
 let audioScriptNode = null;
 const AUDIO_SAMPLE_RATE = 44100;
 const AUDIO_SAMPLES_PER_FRAME = 882; // 44100 / 50
-let audioQueue = []; // ring buffer of frame audio data
-let audioQueueReadPos = 0;
+// Typed ring buffer for audio samples (avoids Array.shift() which is O(n))
+const AUDIO_RING_SIZE = 8192;
+const audioRing = new Float32Array(AUDIO_RING_SIZE);
+let audioRingHead = 0; // write position
+let audioRingTail = 0; // read position
 
 // ============================================================
 // KEYBOARD MAPPING
@@ -176,8 +179,9 @@ function initAudio() {
     const needed = output.length;
 
     for (let i = 0; i < needed; i++) {
-      if (audioQueue.length > 0) {
-        const raw = audioQueue.shift();
+      if (audioRingHead !== audioRingTail) {
+        const raw = audioRing[audioRingTail];
+        audioRingTail = (audioRingTail + 1) & (AUDIO_RING_SIZE - 1);
         // First-order high-pass filter: removes DC, keeps transitions
         hpfPrevOutput = HPF_ALPHA * (hpfPrevOutput + raw - hpfPrevInput);
         hpfPrevInput = raw;
@@ -211,14 +215,12 @@ function pushAudioFrame() {
   const samples = new Uint8Array(memory.buffer, audioBase, sampleCount);
 
   for (let i = 0; i < sampleCount; i++) {
-    // Convert 0/1 to 0.0/1.0
-    audioQueue.push(samples[i] ? 1.0 : 0.0);
-  }
-
-  // Prevent audio queue from growing too large (cap at ~4 frames worth)
-  const maxQueue = AUDIO_SAMPLES_PER_FRAME * 4;
-  if (audioQueue.length > maxQueue) {
-    audioQueue.splice(0, audioQueue.length - maxQueue);
+    audioRing[audioRingHead] = samples[i] ? 1.0 : 0.0;
+    audioRingHead = (audioRingHead + 1) & (AUDIO_RING_SIZE - 1);
+    // If head catches tail, advance tail (drop oldest samples)
+    if (audioRingHead === audioRingTail) {
+      audioRingTail = (audioRingTail + 1) & (AUDIO_RING_SIZE - 1);
+    }
   }
 }
 
@@ -669,23 +671,28 @@ async function loadTapeFile(data, filename) {
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
 const imageData = ctx.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+const screenContainer = document.getElementById('screen-container');
+let cachedScreenBase = 0;
+let lastBorderColor = -1;
 
 function renderFrame() {
   if (!wasm || !memory) return;
 
-  const screenBase = wasm.getScreenBaseAddr();
-  const memArray = new Uint8Array(memory.buffer);
+  // Cache screen base address (only changes on init)
+  if (!cachedScreenBase) cachedScreenBase = wasm.getScreenBaseAddr();
 
-  // Copy screen buffer to ImageData
-  const pixels = imageData.data;
-  const src = new Uint8Array(memory.buffer, screenBase, SCREEN_WIDTH * SCREEN_HEIGHT * 4);
-  pixels.set(src);
+  // Copy screen buffer directly into ImageData backing buffer
+  const dest = new Uint8Array(imageData.data.buffer);
+  dest.set(new Uint8Array(memory.buffer, cachedScreenBase, SCREEN_WIDTH * SCREEN_HEIGHT * 4));
 
   ctx.putImageData(imageData, 0, 0);
 
-  // Update border colour on the flat-screen container
-  const bColor = BORDER_COLORS[wasm.getBorderColor()];
-  document.getElementById('screen-container').style.background = bColor;
+  // Only update border DOM style when colour actually changes
+  const border = wasm.getBorderColor();
+  if (border !== lastBorderColor) {
+    lastBorderColor = border;
+    screenContainer.style.background = BORDER_COLORS[border];
+  }
 }
 
 // ============================================================
