@@ -616,8 +616,13 @@ async function loadTapeFile(data, filename) {
   let isTzx = false;
   let tzxSource = null; // raw TZX ArrayBuffer for pulse generation
 
+  // Auto-detect format from file content when extension is missing/unknown
+  const header = new Uint8Array(data, 0, Math.min(8, data.byteLength));
+  const isZipContent = header[0]===0x50 && header[1]===0x4B && header[2]===0x03 && header[3]===0x04;
+  const isTzxContent = String.fromCharCode(...header.slice(0, 7)) === 'ZXTape!';
+
   try {
-    if (name.endsWith('.zip')) {
+    if (name.endsWith('.zip') || (!name.endsWith('.tap') && !name.endsWith('.tzx') && isZipContent)) {
       const files = await extractZip(data);
       const entry = files.find(f => f.name.endsWith('.tap') || f.name.endsWith('.tzx'));
       if (!entry) { setStatus('No .tap or .tzx file found inside ZIP.'); return; }
@@ -625,7 +630,7 @@ async function loadTapeFile(data, filename) {
       if (isTzx) tzxSource = entry.data;
       tapData = isTzx ? tzxToTap(entry.data) : entry.data;
       setStatus(`Loaded ${entry.name} from ZIP.`);
-    } else if (name.endsWith('.tzx')) {
+    } else if (name.endsWith('.tzx') || isTzxContent) {
       isTzx = true;
       tzxSource = data;
       tapData = tzxToTap(data);
