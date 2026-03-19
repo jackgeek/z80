@@ -10,6 +10,7 @@ Browser-based ZX Spectrum 48K emulator using WebAssembly (AssemblyScript) for th
 npm run build    # Compile AssemblyScript → WASM, copy to src/
 npm run serve    # Start http-server on localhost:8080
 npm run dev      # Build + serve
+npm run asm -- input.asm -o output.tap   # Assemble Z80 source → TAP file
 ```
 
 ## Project Structure
@@ -21,9 +22,16 @@ src/
   main.js            # WASM loader, keyboard, tape loading, audio, frame loop
   joystick.js        # Fullscreen mode + touch joystick overlay
   vkeyboard.js       # Virtual keyboard (ZX Spectrum replica)
+  audio-worklet.js   # AudioWorklet processor (beeper audio, off-main-thread)
   cube.js            # Three.js 3D cube visualization
+  games.json         # Game library data (names + URLs for dropdown)
   48.rom             # ZX Spectrum 48K ROM binary (16 KB)
   spectrum.wasm      # Compiled WASM (build artifact, checked in for GitHub Pages)
+tools/
+  z80asm.js          # Z80 assembler CLI entry point
+  z80asm/            # Assembler modules (parser, encoder, opcodes, TAP generator)
+examples/
+  hello.asm          # Hello World sample Z80 program
 ```
 
 ## Architecture Overview
@@ -42,7 +50,7 @@ See [docs/architecture.md](docs/architecture.md) for full system design.
 - **No frameworks** — vanilla JS, no bundler, no transpiler
 - **Static hosting** — the `src/` directory is the entire deployable site (GitHub Pages)
 - **AssemblyScript idioms** — `@inline` on hot paths, `unchecked()` array access, explicit `u8`/`u16` casts
-- **ROM trap** — tape loading is instant via interception at PC=0x0556, not timing-accurate
+- **ROM trap + pulse playback** — standard blocks load instantly via ROM trap at PC=0x0556; TZX files also generate a pulse stream for timing-accurate custom loader support
 
 ## Deeper Documentation
 
@@ -52,3 +60,4 @@ See [docs/architecture.md](docs/architecture.md) for full system design.
 - [assembly/docs/architecture.md](assembly/docs/architecture.md) — CPU pipeline, memory layout, ULA
 - [src/docs/CLAUDE.md](src/docs/CLAUDE.md) — Frontend overview, module relationships
 - [src/docs/architecture.md](src/docs/architecture.md) — Audio, file formats, WASM integration, rendering
+- [tools/z80asm/docs/CLAUDE.md](tools/z80asm/docs/CLAUDE.md) — Z80 assembler tool overview

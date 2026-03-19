@@ -98,6 +98,22 @@ Z80 OUT to port 0xFE bit 4 (beeper toggle)
   ScriptProcessorNode → Web Audio API → speakers
 ```
 
+## Z80 Assembler toolchain
+
+*Added: 2026-03-19*
+
+A standalone Node.js CLI tool (`tools/z80asm.js`) that assembles Z80 source files into ZX Spectrum TAP files. The output TAP integrates directly with the emulator via drag-and-drop or the game library dropdown.
+
+```
+source.asm → [z80asm] → output.tap → [emulator loads via ROM trap]
+```
+
+The assembler is a two-pass design:
+- **Pass 1**: Collect labels and calculate instruction sizes
+- **Pass 2**: Emit binary with resolved symbol references
+
+Output TAP contains a BASIC loader (`CLEAR / LOAD "" CODE / RANDOMIZE USR`) plus the assembled CODE block. See [tools/z80asm/docs/CLAUDE.md](../tools/z80asm/docs/CLAUDE.md) for module details.
+
 ## Deployment
 
 GitHub Actions builds WASM on every push to `main` and deploys the `src/` directory to GitHub Pages. The site is 100% static files — no server-side logic.

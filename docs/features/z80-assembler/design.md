@@ -115,7 +115,7 @@ A Node.js CLI tool that reads Z80 assembly source files and outputs ZX Spectrum 
 node tools/z80asm.js hello.asm
 
 # Specify output file
-node tools/z80asm.js hello.asm -o src/game-library/hello.tap
+node tools/z80asm.js hello.asm -o examples/hello.tap
 
 # No auto-run
 node tools/z80asm.js test.asm --no-autorun
