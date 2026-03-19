@@ -150,8 +150,8 @@ function tokenize(expr) {
       continue;
     }
 
-    // Symbol names (identifiers): start with a letter or underscore
-    if (/[a-zA-Z_]/.test(ch)) {
+    // Symbol names (identifiers): start with a letter, underscore, or dot (local labels)
+    if (/[a-zA-Z_.]/.test(ch)) {
       let j = i;
       while (j < expr.length && /[a-zA-Z0-9_.]/.test(expr[j])) j++;
       // Check for trailing h — could be hex like FFh, but those start with a digit
