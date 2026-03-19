@@ -176,7 +176,7 @@ function getInstructionSize(mnemonic, operands) {
     case 'CALL':
       return 3;
     case 'RET':
-      return ops.length === 1 ? 2 : 1;
+      return 1;
     case 'RST':
       return 1;
     case 'PUSH': case 'POP':
@@ -799,7 +799,7 @@ function encodeRET(c0, ops) {
     } else {
       throw new Error(`Invalid condition for RET: ${ops[0]}`);
     }
-    return { bytes: [0xC0 + (cc << 3)], size: 2 };
+    return { bytes: [0xC0 + (cc << 3)], size: 1 };
   }
   throw new Error('Invalid RET instruction');
 }
