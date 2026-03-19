@@ -14,14 +14,16 @@ let cachedRomData = null; // keep a copy for resets
 
 // Audio
 let audioCtx = null;
-let audioScriptNode = null;
+let audioWorkletNode = null; // AudioWorklet (preferred, off-main-thread)
+let audioScriptNode = null;  // ScriptProcessorNode (fallback)
+let useWorklet = false;
 const AUDIO_SAMPLE_RATE = 44100;
 const AUDIO_SAMPLES_PER_FRAME = 882; // 44100 / 50
-// Typed ring buffer for audio samples (avoids Array.shift() which is O(n))
+// Ring buffer for ScriptProcessorNode fallback
 const AUDIO_RING_SIZE = 8192;
 const audioRing = new Float32Array(AUDIO_RING_SIZE);
-let audioRingHead = 0; // write position
-let audioRingTail = 0; // read position
+let audioRingHead = 0;
+let audioRingTail = 0;
 
 // ============================================================
 // KEYBOARD MAPPING
@@ -163,7 +165,7 @@ let hpfPrevInput = 0;
 let hpfPrevOutput = 0;
 const HPF_ALPHA = 0.995; // cutoff ~35Hz at 44100Hz
 
-function initAudio() {
+async function initAudio() {
   if (audioCtx) {
     // iOS suspends context when page loses focus — always try to resume
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -173,27 +175,40 @@ function initAudio() {
     sampleRate: AUDIO_SAMPLE_RATE
   });
 
-  audioScriptNode = audioCtx.createScriptProcessor(2048, 0, 1);
-  audioScriptNode.onaudioprocess = function(e) {
-    const output = e.outputBuffer.getChannelData(0);
-    const needed = output.length;
-
-    for (let i = 0; i < needed; i++) {
-      if (audioRingHead !== audioRingTail) {
-        const raw = audioRing[audioRingTail];
-        audioRingTail = (audioRingTail + 1) & (AUDIO_RING_SIZE - 1);
-        // First-order high-pass filter: removes DC, keeps transitions
-        hpfPrevOutput = HPF_ALPHA * (hpfPrevOutput + raw - hpfPrevInput);
-        hpfPrevInput = raw;
-        output[i] = hpfPrevOutput * 0.5;
-      } else {
-        // Fade filter state toward zero when no data
-        hpfPrevOutput *= 0.99;
-        output[i] = 0;
-      }
+  // Try AudioWorklet first (runs on dedicated audio thread)
+  if (audioCtx.audioWorklet) {
+    try {
+      await audioCtx.audioWorklet.addModule('audio-worklet.js');
+      audioWorkletNode = new AudioWorkletNode(audioCtx, 'beeper-processor');
+      audioWorkletNode.connect(audioCtx.destination);
+      useWorklet = true;
+    } catch (e) {
+      console.warn('AudioWorklet failed, using ScriptProcessor fallback:', e);
     }
-  };
-  audioScriptNode.connect(audioCtx.destination);
+  }
+
+  // Fallback to ScriptProcessorNode (runs on main thread)
+  if (!useWorklet) {
+    audioScriptNode = audioCtx.createScriptProcessor(2048, 0, 1);
+    audioScriptNode.onaudioprocess = function(e) {
+      const output = e.outputBuffer.getChannelData(0);
+      const needed = output.length;
+
+      for (let i = 0; i < needed; i++) {
+        if (audioRingHead !== audioRingTail) {
+          const raw = audioRing[audioRingTail];
+          audioRingTail = (audioRingTail + 1) & (AUDIO_RING_SIZE - 1);
+          hpfPrevOutput = HPF_ALPHA * (hpfPrevOutput + raw - hpfPrevInput);
+          hpfPrevInput = raw;
+          output[i] = hpfPrevOutput * 0.5;
+        } else {
+          hpfPrevOutput *= 0.99;
+          output[i] = 0;
+        }
+      }
+    };
+    audioScriptNode.connect(audioCtx.destination);
+  }
 
   // iOS requires an explicit resume after creation
   audioCtx.resume();
@@ -206,28 +221,40 @@ function initAudio() {
 });
 
 let cachedAudioBase = 0;
+const audioPostBuf = new Float32Array(AUDIO_SAMPLES_PER_FRAME);
 
 function pushAudioFrame() {
   if (!audioCtx || !wasm) return;
-  // Don't queue audio if context isn't running (iOS still suspended)
   if (audioCtx.state !== 'running') return;
 
   if (!cachedAudioBase) cachedAudioBase = wasm.getAudioBaseAddr();
   const sampleCount = wasm.getAudioSampleCount();
   const samples = new Uint8Array(memory.buffer, cachedAudioBase, sampleCount);
 
-  let head = audioRingHead;
-  let tail = audioRingTail;
-  for (let i = 0; i < sampleCount; i++) {
-    audioRing[head] = samples[i] ? 1.0 : 0.0;
-    head = (head + 1) & (AUDIO_RING_SIZE - 1);
-    // If head catches tail, advance tail (drop oldest samples)
-    if (head === tail) {
-      tail = (tail + 1) & (AUDIO_RING_SIZE - 1);
+  if (useWorklet) {
+    // Post samples to AudioWorklet thread
+    for (let i = 0; i < sampleCount; i++) {
+      audioPostBuf[i] = samples[i] ? 1.0 : 0.0;
     }
+    audioWorkletNode.port.postMessage(
+      sampleCount === audioPostBuf.length
+        ? audioPostBuf
+        : audioPostBuf.subarray(0, sampleCount)
+    );
+  } else {
+    // ScriptProcessorNode fallback — write to shared ring buffer
+    let head = audioRingHead;
+    let tail = audioRingTail;
+    for (let i = 0; i < sampleCount; i++) {
+      audioRing[head] = samples[i] ? 1.0 : 0.0;
+      head = (head + 1) & (AUDIO_RING_SIZE - 1);
+      if (head === tail) {
+        tail = (tail + 1) & (AUDIO_RING_SIZE - 1);
+      }
+    }
+    audioRingHead = head;
+    audioRingTail = tail;
   }
-  audioRingHead = head;
-  audioRingTail = tail;
 }
 
 // ============================================================
@@ -672,16 +699,79 @@ async function loadTapeFile(data, filename) {
 }
 
 // ============================================================
-// SCREEN RENDERING
+// SCREEN RENDERING (WebGL with Canvas 2D fallback)
 // ============================================================
 const canvas = document.getElementById('screen');
-const ctx = canvas.getContext('2d');
-const imageData = ctx.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
-const imgDest = new Uint8Array(imageData.data.buffer);
 const screenContainer = document.getElementById('screen-container');
 const SCREEN_BYTES = SCREEN_WIDTH * SCREEN_HEIGHT * 4;
-let screenSrc = null; // cached view into WASM memory
+let screenSrc = null;
 let lastBorderColor = -1;
+let useWebGL = false;
+let gl = null;
+let glTexture = null;
+
+// Canvas 2D fallback state
+let ctx2d = null;
+let imageData = null;
+let imgDest = null;
+
+// Try WebGL first
+gl = canvas.getContext('webgl', { antialias: false, depth: false, stencil: false, alpha: false });
+if (gl) {
+  useWebGL = true;
+
+  // Fullscreen quad (two triangles)
+  const verts = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, `
+    attribute vec2 p;
+    varying vec2 uv;
+    void main() {
+      uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
+      gl_Position = vec4(p, 0.0, 1.0);
+    }
+  `);
+  gl.compileShader(vs);
+
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, `
+    precision mediump float;
+    varying vec2 uv;
+    uniform sampler2D tex;
+    void main() { gl_FragColor = texture2D(tex, uv); }
+  `);
+  gl.compileShader(fs);
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  const pLoc = gl.getAttribLocation(prog, 'p');
+  gl.enableVertexAttribArray(pLoc);
+  gl.vertexAttribPointer(pLoc, 2, gl.FLOAT, false, 0, 0);
+
+  glTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, glTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  // Allocate texture storage once
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, SCREEN_WIDTH, SCREEN_HEIGHT, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+  gl.viewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+} else {
+  // Canvas 2D fallback
+  ctx2d = canvas.getContext('2d');
+  imageData = ctx2d.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+  imgDest = new Uint8Array(imageData.data.buffer);
+}
 
 function renderFrame() {
   if (!wasm || !memory) return;
@@ -691,8 +781,13 @@ function renderFrame() {
     screenSrc = new Uint8Array(memory.buffer, wasm.getScreenBaseAddr(), SCREEN_BYTES);
   }
 
-  imgDest.set(screenSrc);
-  ctx.putImageData(imageData, 0, 0);
+  if (useWebGL) {
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, gl.RGBA, gl.UNSIGNED_BYTE, screenSrc);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  } else {
+    imgDest.set(screenSrc);
+    ctx2d.putImageData(imageData, 0, 0);
+  }
 
   // Only update border DOM style when colour actually changes
   const border = wasm.getBorderColor();
