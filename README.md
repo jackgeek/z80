@@ -8,15 +8,19 @@ A ZX Spectrum 48K emulator running in the browser via WebAssembly.
 
 - Full Z80 CPU emulation compiled to WebAssembly (AssemblyScript)
 - Accurate ULA screen rendering — 256×192 pixels, attributes, flash, border colour
-- 1-bit beeper audio via Web Audio API
-- TAP file loading via drag & drop (instant load, no tape timing emulation needed)
+- 1-bit beeper audio via AudioWorklet (off-main-thread, with ScriptProcessorNode fallback)
+- TAP, TZX, and ZIP file loading via drag & drop or file picker
+- Instant loading via ROM trap, plus pulse-accurate tape playback for custom loaders
 - Keyboard mapped to the ZX Spectrum matrix
+- Virtual on-screen keyboard (ZX Spectrum replica)
+- Fullscreen mode with touch joystick overlay (mobile-friendly)
+- WebGL screen rendering (with Canvas 2D fallback)
 - 3D rotating cube mode — the live screen rendered on all six faces (Three.js)
 
 ## Usage
 
 1. The emulator loads the ROM automatically on startup (`48.rom` must be present)
-2. Drag and drop a `.tap` file onto the page to load software
+2. Drag and drop a `.tap`, `.tzx`, or `.zip` file onto the page to load software
 3. Type `LOAD ""` — press **J**, then **Ctrl+P** twice, then **Enter**
 4. Toggle **Cube mode** in the controls for a 3D view
 
@@ -48,6 +52,7 @@ The ZX Spectrum 48K ROM is © Amstrad plc. Amstrad have given their permission f
 ## Tech stack
 
 - [AssemblyScript](https://www.assemblyscript.org/) — Z80 CPU and Spectrum hardware compiled to WASM
+- WebGL — screen rendering (Canvas 2D fallback)
+- AudioWorklet / Web Audio API — beeper audio (off main thread)
 - [Three.js](https://threejs.org/) — 3D cube renderer
-- Web Audio API — beeper audio
 - GitHub Actions + GitHub Pages — CI/CD and hosting

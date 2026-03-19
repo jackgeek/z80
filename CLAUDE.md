@@ -23,6 +23,7 @@ src/
   vkeyboard.js       # Virtual keyboard (ZX Spectrum replica)
   audio-worklet.js   # AudioWorklet processor (beeper audio, off-main-thread)
   cube.js            # Three.js 3D cube visualization
+  debug.html         # Minimal WASM test harness (dev only)
   48.rom             # ZX Spectrum 48K ROM binary (16 KB)
   spectrum.wasm      # Compiled WASM (build artifact, checked in for GitHub Pages)
 ```
@@ -43,7 +44,7 @@ See [docs/architecture.md](docs/architecture.md) for full system design.
 - **No frameworks** — vanilla JS, no bundler, no transpiler
 - **Static hosting** — the `src/` directory is the entire deployable site (GitHub Pages)
 - **AssemblyScript idioms** — `@inline` on hot paths, `unchecked()` array access, explicit `u8`/`u16` casts
-- **ROM trap** — tape loading is instant via interception at PC=0x0556, not timing-accurate
+- **ROM trap + pulse playback** — standard blocks load instantly via ROM trap at PC=0x0556; TZX files also generate a pulse stream for timing-accurate custom loader support
 
 ## Deeper Documentation
 
