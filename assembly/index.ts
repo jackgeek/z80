@@ -138,6 +138,13 @@ let tapePlaying: bool = false;  // whether pulse tape is active
 let blockBoundsCount: u32 = 0; // number of block boundary entries
 let tapBlockIndex: u32 = 0;    // which TAP block the ROM trap has loaded next
 
+// EAR edge detection diagnostics
+let lastEarBit: u8 = 0xFF;    // last EAR bit read (0xFF = uninitialized)
+let earReadCount: u32 = 0;     // total port 0xFE reads while tape playing
+let earEdgeCount: u32 = 0;     // edges detected (bit 6 changes)
+let earWriteCount: u32 = 0;    // memory writes to 0x6000+ during tape play
+let earRamReads: u32 = 0;      // port 0xFE reads from RAM (PC >= 0x4000)
+
 // Kempston joystick (port 0x1F): bit0=right, bit1=left, bit2=down, bit3=up, bit4=fire
 let kempston: u8 = 0;
 
@@ -185,6 +192,7 @@ let audioCycleAccum: i32 = 0;
   // Don't write to ROM (0x0000-0x3FFF)
   if (addr >= 0x4000) {
     store<u8>(MEM_BASE + <u32>addr, val);
+    if (tapePlaying && addr >= 0x6000) earWriteCount++;
   }
 }
 
@@ -242,9 +250,23 @@ function portIn(port: u16): u8 {
       }
     }
     // Bits 5-7: bit 6 = ear input (tape level), bits 5,7 = 1
-    // Tape level is advanced continuously in the frame loop, not lazily here.
-    // Just read the current level.
-    result = (result & 0x1F) | 0xA0 | (<u8>tapeLevel << 6);
+    // On real hardware, EAR input is HIGH during silence (pulled up by circuit).
+    // During long pauses (>100000 T-states), force EAR HIGH so the transition
+    // from silence to signal creates an edge — critical for Speedlock loaders
+    // that derive decryption keys from pilot pulse counts.
+    let earBit: u8 = tapeLevel;
+    if (tapePlaying && pulsePos < pulseCount) {
+      let dur: u32 = load<u32>(PULSE_BASE + (pulsePos << 2));
+      if (dur > 100000) earBit = 1;
+    }
+    if (tapePlaying) {
+      earReadCount++;
+      if (lastEarBit != 0xFF && earBit != lastEarBit) {
+        earEdgeCount++;
+      }
+      lastEarBit = earBit;
+    }
+    result = (result & 0x1F) | 0xA0 | (earBit << 6);
     return result;
   }
   // Kempston joystick (port 0x1F)
@@ -477,7 +499,7 @@ function getCondition(cc: u8): bool {
 // ============================================================
 function executeCB(): i32 {
   let op: u8 = fetchByte();
-  R_reg = (R_reg + 1) & 0x7F;
+  R_reg = (R_reg & 0x80) | ((R_reg + 1) & 0x7F);
   let r: u8 = op & 0x07;
   let val: u8 = getReg(r);
   let bit: u8 = (op >> 3) & 0x07;
@@ -551,7 +573,7 @@ function executeCB(): i32 {
 // ============================================================
 function executeED(): i32 {
   let op: u8 = fetchByte();
-  R_reg = (R_reg + 1) & 0x7F;
+  R_reg = (R_reg & 0x80) | ((R_reg + 1) & 0x7F);
 
   switch (op) {
     // IN r, (C)
@@ -922,7 +944,7 @@ function adcHL(val: u16): void {
 // ============================================================
 function executeIndexed(isIY: bool): i32 {
   let op: u8 = fetchByte();
-  R_reg = (R_reg + 1) & 0x7F;
+  R_reg = (R_reg & 0x80) | ((R_reg + 1) & 0x7F);
   let idx: u16 = isIY ? IY : IX;
 
   switch (op) {
@@ -1182,7 +1204,7 @@ function execute(): i32 {
   }
 
   let op: u8 = fetchByte();
-  R_reg = (R_reg + 1) & 0x7F;
+  R_reg = (R_reg & 0x80) | ((R_reg + 1) & 0x7F);
 
   // Decode groups
   if (op >= 0x40 && op <= 0x7F) {
@@ -1895,3 +1917,6 @@ export function readMem(addr: u16): u8 { return readByte(addr); }
 export function getIM(): u8 { return <u8>IM; }
 export function getIFF1(): u8 { return IFF1 ? 1 : 0; }
 export function getI(): u8 { return I_reg; }
+export function getEarReadCount(): u32 { return earReadCount; }
+export function getEarEdgeCount(): u32 { return earEdgeCount; }
+export function getEarWriteCount(): u32 { return earWriteCount; }

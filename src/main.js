@@ -715,6 +715,29 @@ function frameLoop(timestamp) {
     renderFrame();
     pushAudioFrame();
 
+    // One-shot: dump system variables at very first frame of tape playback
+    if (playing && !wasTapePlaying) {
+      const sysVars = {};
+      const r16 = (lo, hi) => wasm.readMem(lo) | (wasm.readMem(hi) << 8);
+      sysVars.PROG = r16(23635, 23636);
+      sysVars.VARS = r16(23627, 23628);
+      sysVars.E_LINE = r16(23641, 23642);
+      sysVars.WORKSP = r16(23649, 23650);
+      sysVars.STKBOT = r16(23651, 23652);
+      sysVars.CURCHL = r16(23633, 23634);
+      sysVars.NXTLIN = r16(23637, 23638);
+      sysVars.CH_ADD = r16(23645, 23646);
+      sysVars.NEWPPC = r16(23618, 23619);
+      sysVars.PPC = r16(23621, 23622);
+      sysVars.OLDPPC = r16(23662, 23663);
+      sysVars.ERR_SP = r16(23613, 23614);
+      const pc = wasm.getPC().toString(16).padStart(4, '0');
+      console.log(`[sysvar] PC=0x${pc}`, Object.entries(sysVars).map(([k,v]) => `${k}=0x${v.toString(16)}`).join(' '));
+      // Dump first 20 bytes at PROG to verify BASIC loaded correctly
+      let progDump = [];
+      for (let i = 0; i < 20; i++) progDump.push(wasm.readMem(sysVars.PROG + i).toString(16).padStart(2, '0'));
+      console.log(`[sysvar] PROG data: ${progDump.join(' ')}`);
+    }
     // Periodic tape diagnostics
     if (playing || wasTapePlaying) {
       tapeDebugTimer++;
@@ -725,7 +748,10 @@ function frameLoop(timestamp) {
         const tapSize = wasm.getTapSize();
         const level = wasm.getTapeLevel();
         const pct = totalPulseCount ? (pulsePos / totalPulseCount * 100).toFixed(1) : '?';
-        console.log(`[tape] PC=0x${pc} pulse=${pulsePos}/${totalPulseCount} (${pct}%) tap=${tapPos}/${tapSize} level=${level} playing=${playing}`);
+        const earReads = wasm.getEarReadCount();
+        const earEdges = wasm.getEarEdgeCount();
+        const earWrites = wasm.getEarWriteCount();
+        console.log(`[tape] PC=0x${pc} pulse=${pulsePos}/${totalPulseCount} (${pct}%) tap=${tapPos}/${tapSize} level=${level} playing=${playing} earReads=${earReads} edges=${earEdges} writes=${earWrites}`);
         if (wasTapePlaying && !playing) {
           console.log('[tape] Playback ended');
           postTapeFrames = 0;
