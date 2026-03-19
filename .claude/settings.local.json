@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls c:/git/personal/z80/src/*.js)"
+      "Bash(ls c:/git/personal/z80/src/*.js)",
+      "Bash(ls -lh /c/git/personal/z80/src/*.rom)",
+      "Bash(node tools/patch-rom.js patches/hello-world.js --diff)"
+    ],
+    "additionalDirectories": [
+      "c:\\git\\personal\\z80"
     ]
   }
 }
