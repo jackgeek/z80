@@ -1,6 +1,6 @@
 {
   "name": "zx-spectrum-emulator",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "scripts": {
     "build": "node -e \"require('fs').mkdirSync('build',{recursive:true})\" && asc assembly/index.ts --outFile build/spectrum.wasm --runtime stub --optimizeLevel 3 --importMemory --initialMemory 256 --maximumMemory 256 && node -e \"require('fs').copyFileSync('build/spectrum.wasm','src/spectrum.wasm')\"",
     "serve": "npx http-server src -p 8080 -c-1",

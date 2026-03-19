@@ -138,13 +138,6 @@ let tapePlaying: bool = false;  // whether pulse tape is active
 let blockBoundsCount: u32 = 0; // number of block boundary entries
 let tapBlockIndex: u32 = 0;    // which TAP block the ROM trap has loaded next
 
-// EAR edge detection diagnostics
-let lastEarBit: u8 = 0xFF;    // last EAR bit read (0xFF = uninitialized)
-let earReadCount: u32 = 0;     // total port 0xFE reads while tape playing
-let earEdgeCount: u32 = 0;     // edges detected (bit 6 changes)
-let earWriteCount: u32 = 0;    // memory writes to 0x6000+ during tape play
-let earRamReads: u32 = 0;      // port 0xFE reads from RAM (PC >= 0x4000)
-
 // Kempston joystick (port 0x1F): bit0=right, bit1=left, bit2=down, bit3=up, bit4=fire
 let kempston: u8 = 0;
 
@@ -192,7 +185,6 @@ let audioCycleAccum: i32 = 0;
   // Don't write to ROM (0x0000-0x3FFF)
   if (addr >= 0x4000) {
     store<u8>(MEM_BASE + <u32>addr, val);
-    if (tapePlaying && addr >= 0x6000) earWriteCount++;
   }
 }
 
@@ -258,13 +250,6 @@ function portIn(port: u16): u8 {
     if (tapePlaying && pulsePos < pulseCount) {
       let dur: u32 = load<u32>(PULSE_BASE + (pulsePos << 2));
       if (dur > 100000) earBit = 1;
-    }
-    if (tapePlaying) {
-      earReadCount++;
-      if (lastEarBit != 0xFF && earBit != lastEarBit) {
-        earEdgeCount++;
-      }
-      lastEarBit = earBit;
     }
     result = (result & 0x1F) | 0xA0 | (earBit << 6);
     return result;
@@ -1917,6 +1902,3 @@ export function readMem(addr: u16): u8 { return readByte(addr); }
 export function getIM(): u8 { return <u8>IM; }
 export function getIFF1(): u8 { return IFF1 ? 1 : 0; }
 export function getI(): u8 { return I_reg; }
-export function getEarReadCount(): u32 { return earReadCount; }
-export function getEarEdgeCount(): u32 { return earEdgeCount; }
-export function getEarWriteCount(): u32 { return earWriteCount; }
