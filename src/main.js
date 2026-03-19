@@ -205,23 +205,29 @@ function initAudio() {
   document.addEventListener(evt, () => initAudio(), { passive: true });
 });
 
+let cachedAudioBase = 0;
+
 function pushAudioFrame() {
   if (!audioCtx || !wasm) return;
   // Don't queue audio if context isn't running (iOS still suspended)
   if (audioCtx.state !== 'running') return;
 
-  const audioBase = wasm.getAudioBaseAddr();
+  if (!cachedAudioBase) cachedAudioBase = wasm.getAudioBaseAddr();
   const sampleCount = wasm.getAudioSampleCount();
-  const samples = new Uint8Array(memory.buffer, audioBase, sampleCount);
+  const samples = new Uint8Array(memory.buffer, cachedAudioBase, sampleCount);
 
+  let head = audioRingHead;
+  let tail = audioRingTail;
   for (let i = 0; i < sampleCount; i++) {
-    audioRing[audioRingHead] = samples[i] ? 1.0 : 0.0;
-    audioRingHead = (audioRingHead + 1) & (AUDIO_RING_SIZE - 1);
+    audioRing[head] = samples[i] ? 1.0 : 0.0;
+    head = (head + 1) & (AUDIO_RING_SIZE - 1);
     // If head catches tail, advance tail (drop oldest samples)
-    if (audioRingHead === audioRingTail) {
-      audioRingTail = (audioRingTail + 1) & (AUDIO_RING_SIZE - 1);
+    if (head === tail) {
+      tail = (tail + 1) & (AUDIO_RING_SIZE - 1);
     }
   }
+  audioRingHead = head;
+  audioRingTail = tail;
 }
 
 // ============================================================
@@ -671,20 +677,21 @@ async function loadTapeFile(data, filename) {
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
 const imageData = ctx.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+const imgDest = new Uint8Array(imageData.data.buffer);
 const screenContainer = document.getElementById('screen-container');
-let cachedScreenBase = 0;
+const SCREEN_BYTES = SCREEN_WIDTH * SCREEN_HEIGHT * 4;
+let screenSrc = null; // cached view into WASM memory
 let lastBorderColor = -1;
 
 function renderFrame() {
   if (!wasm || !memory) return;
 
-  // Cache screen base address (only changes on init)
-  if (!cachedScreenBase) cachedScreenBase = wasm.getScreenBaseAddr();
+  // Cache source view (WASM memory is fixed-size, buffer never detaches)
+  if (!screenSrc) {
+    screenSrc = new Uint8Array(memory.buffer, wasm.getScreenBaseAddr(), SCREEN_BYTES);
+  }
 
-  // Copy screen buffer directly into ImageData backing buffer
-  const dest = new Uint8Array(imageData.data.buffer);
-  dest.set(new Uint8Array(memory.buffer, cachedScreenBase, SCREEN_WIDTH * SCREEN_HEIGHT * 4));
-
+  imgDest.set(screenSrc);
   ctx.putImageData(imageData, 0, 0);
 
   // Only update border DOM style when colour actually changes
@@ -709,7 +716,10 @@ function frameLoop(timestamp) {
   const elapsed = timestamp - lastFrameTime;
   if (elapsed < FRAME_INTERVAL * 0.9) return; // throttle to ~50fps
 
-  lastFrameTime = timestamp;
+  // Anchor to previous frame time to prevent drift (cap catch-up to 1 frame)
+  lastFrameTime = elapsed > FRAME_INTERVAL * 2
+    ? timestamp
+    : lastFrameTime + FRAME_INTERVAL;
 
   try {
     // Turbo: run extra frames during pulse tape playback (skip render/audio)
