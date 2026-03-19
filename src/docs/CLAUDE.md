@@ -4,13 +4,16 @@ The `src/` directory is the complete deployable website. It contains vanilla Jav
 
 ## Modules
 
-### main.js (642 lines)
+### main.js (~985 lines)
+
+*Updated: 2026-03-19 (line count, WebGL, AudioWorklet)*
+
 The central controller. Handles:
 - WASM instantiation and shared memory setup
 - Keyboard event handling (maps PC keys to Spectrum 8×5 matrix)
 - Frame loop (`requestAnimationFrame` throttled to 50 Hz)
-- Screen rendering (copies WASM screen buffer to canvas via `ImageData`)
-- Audio pipeline (reads WASM audio buffer → high-pass filter → Web Audio)
+- Screen rendering (WebGL with texSubImage2D primary, Canvas 2D putImageData fallback)
+- Audio pipeline (AudioWorklet preferred, ScriptProcessorNode fallback; reads WASM audio buffer, high-pass filter, Web Audio)
 - File loading (drag-and-drop + file picker, parses TAP/TZX/ZIP formats)
 - Reset and pause controls
 
@@ -30,6 +33,12 @@ Faithful ZX Spectrum keyboard replica:
 - Touch-friendly: 44px keys on mobile, 56px on desktop
 - Rainbow stripe decoration on the right edge
 
+### audio-worklet.js
+
+*Updated: 2026-03-19 (new module)*
+
+AudioWorklet processor for beeper audio. Runs on a dedicated audio thread with its own ring buffer and high-pass filter. Receives samples via MessagePort from main.js.
+
 ### cube.js (109 lines)
 Three.js 3D cube visualization (loaded from CDN):
 - Creates a 512×512 texture canvas showing the Spectrum screen with border color
@@ -46,6 +55,10 @@ Three.js 3D cube visualization (loaded from CDN):
 - **Cube → screen**: `cube.js` reads the main `<canvas>` element to create its texture
 
 ## File Formats
+
+*Updated: 2026-03-19 (content-based detection note)*
+
+Formats are detected by both file extension and content (magic bytes), so files load correctly even when the extension is missing or unrecognized (common on mobile file pickers).
 
 | Format | Detection | Handling |
 |--------|-----------|----------|

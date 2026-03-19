@@ -14,33 +14,50 @@ JS and WASM share the same memory buffer. JS reads/writes at known offsets:
 | `0x100000` | Write (ROM load) | Z80 address space — JS loads ROM here at startup |
 | `0x110000` | Read | Screen buffer — WASM renders 256×192 RGBA pixels |
 | `0x140000` | Write | TAP buffer — JS writes parsed tape data |
-| `0x1C0000` | Read | Audio buffer — WASM writes 882 i16 beeper samples/frame |
+| `0x1C0000` | Read | Audio buffer — WASM writes 882 u8 beeper samples/frame |
+| `0x200000` | Write | Pulse buffer — JS writes u32 T-state durations for TZX pulse playback |
 
-## Audio Pipeline
+## Audio pipeline
+
+*Updated: 2026-03-19 (AudioWorklet path, u8 samples)*
 
 ```
-WASM beeper samples (882 i16/frame at 44.1 kHz)
+WASM beeper samples (882 u8/frame at 44.1 kHz)
         │
         ▼
-  Read from WASM memory as Int16Array
+  Read from WASM memory as Uint8Array
         │
         ▼
-  High-pass filter: y[n] = α·(y[n-1] + x[n] - x[n-1])
+  Converted to float (0.0 / 1.0)
+        │
+        ├─── AudioWorklet path (preferred) ──────────────────────┐
+        │    Posted via MessagePort to BeeperProcessor           │
+        │    running on dedicated audio thread                   │
+        │    Applies HPF, outputs to speakers                    │
+        │                                                        │
+        ├─── ScriptProcessorNode fallback ───────────────────────┤
+        │    Written to Float32Array ring buffer                 │
+        │    (8192 entries, bitmask indexing)                     │
+        │    Read by ScriptProcessorNode callback                │
+        │    Applies HPF                                         │
+        │                                                        │
+        ▼                                                        │
+  High-pass filter: y[n] = α·(y[n-1] + x[n] - x[n-1])  ◄───────┘
   α = 0.995 (~35 Hz cutoff, removes DC offset)
-        │
-        ▼
-  ScriptProcessorNode (buffer size 2048)
-  Accumulates filtered samples, outputs when buffer full
         │
         ▼
   Web Audio API → speakers
 ```
 
-Audio context is created on first user interaction (required by browser autoplay policies). On iOS, the context may auto-suspend and needs resuming on touch.
+AudioWorklet runs on a dedicated audio thread, freeing the main thread from audio processing. Browsers without AudioWorklet support fall back to ScriptProcessorNode. Audio context is created on first user interaction (required by browser autoplay policies). On iOS, the context may auto-suspend and needs resuming on touch.
 
-## Screen Rendering
+## Screen rendering
 
-Each frame, JS copies the WASM screen buffer to a canvas:
+*Updated: 2026-03-19 (WebGL primary renderer)*
+
+Primary: WebGL with `texSubImage2D` uploads the WASM screen buffer directly as a GPU texture, rendered via a fullscreen quad with `NEAREST` filtering for pixel-perfect scaling.
+
+Fallback: Canvas 2D with `putImageData` for browsers without WebGL support:
 
 ```javascript
 const src = new Uint8Array(memory.buffer, SCREEN_BASE, 256 * 192 * 4);
@@ -48,7 +65,7 @@ imageData.data.set(src);
 ctx.putImageData(imageData, 0, 0);
 ```
 
-The canvas is CSS-scaled to fill the available space. No WebGL is used for the main display (only for the optional 3D cube via Three.js).
+Both paths cache the source `Uint8Array` view since WASM memory is fixed-size. The canvas is CSS-scaled to fill the available space. The optional 3D cube visualization also uses WebGL via Three.js.
 
 ## Frame Loop
 
@@ -90,10 +107,16 @@ Special mappings: Shift → Caps Shift (row 0), Ctrl → Symbol Shift (row 7), A
 Simple sequential blocks: `[2-byte length][data...]` repeated. Written directly to the WASM tape buffer at offset 0x140000.
 
 ### TZX Format
-Complex multi-block format. The loader extracts standard data blocks (types 0x10, 0x11, 0x14) and reassembles them into TAP format before writing to WASM memory. Other block types (pauses, text descriptions, etc.) are skipped.
+
+*Updated: 2026-03-19 (pulse stream generation, content-based detection)*
+
+Complex multi-block format. The loader extracts standard data blocks (types 0x10, 0x11, 0x14) and reassembles them into TAP format before writing to WASM memory. Other block types (pauses, text descriptions, etc.) are skipped. TZX files also generate a pulse stream (array of T-state durations) for accurate tape signal emulation via port 0xFE bit 6, supporting custom loaders like Speedlock.
 
 ### ZIP Format
 Uses the browser's `DecompressionStream` API for deflate. Parses the ZIP local file headers to find the first `.tap` or `.tzx` file, decompresses it, then processes it as above.
+
+### Content-based format detection
+Files are auto-detected by magic bytes (`PK` header for ZIP, `ZXTape!` for TZX) when the file extension is missing or unrecognized. This is important for mobile where file pickers may strip extensions.
 
 ## Fullscreen & Joystick
 

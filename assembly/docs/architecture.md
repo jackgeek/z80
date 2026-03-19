@@ -5,7 +5,7 @@
 ```
 Main:    A F  B C  D E  H L  IX  IY  SP  PC
 Shadow:  A'F' B'C' D'E' H'L'
-Control: I (interrupt vector)  R (refresh counter)
+Control: I (interrupt vector)  R (refresh counter, bit 7 preserved)
          IFF1/IFF2 (interrupt flip-flops)  IM (interrupt mode)
 ```
 
@@ -23,6 +23,10 @@ Bit 0: C   Carry
 ```
 
 Flag computation uses pre-built lookup tables (`sz53Table`, `parityTable`, `sz53pTable`) and half-carry/overflow tables indexed by a 3-bit lookup combining operand and result bits.
+
+The R (refresh) register preserves bit 7 across increments: only bits 0-6 are incremented, matching real Z80 behavior (`R = (R & 0x80) | ((R + 1) & 0x7F)`). Some copy protection schemes rely on this.
+
+*Updated: 2026-03-19 -- added R register bit 7 preservation note*
 
 ## Memory Map (Z80 Address Space)
 
@@ -92,8 +96,10 @@ Samples are written as `i16` values to the audio buffer at offset 0x1C0000.
 ## I/O Ports
 
 **Port 0xFE (any even port — active when bit 0 of port address is 0):**
-- **IN**: Keyboard matrix. High byte of port address selects row(s); returns 5-bit key state in bits 0–4.
-- **OUT**: Bits 0–2 = border color, bit 4 = beeper output.
+- **IN**: Keyboard matrix. High byte of port address selects row(s); returns 5-bit key state in bits 0-4. Bit 6 returns the EAR/tape input state, which reflects the current pulse level during tape playback (forced HIGH during long silence gaps to match real hardware pull-up behavior). Bits 5 and 7 are always set.
+- **OUT**: Bits 0-2 = border color, bit 4 = beeper output.
+
+*Updated: 2026-03-19 -- added EAR bit 6 tape input to port 0xFE IN*
 
 **Port 0x1F (Kempston joystick):**
 - **IN**: Bit 0=right, 1=left, 2=down, 3=up, 4=fire.
@@ -109,6 +115,22 @@ At `PC == 0x0556` (the ROM's LD-BYTES entry point), the emulator intercepts and 
 5. If no match: skip block, try next
 
 This makes tape loading instant rather than requiring real-time tape signal emulation.
+
+When a TZX file is loaded, the ROM trap works alongside pulse playback. After each ROM-trapped block load, the pulse stream index is advanced to the corresponding block boundary so the two mechanisms stay in sync.
+
+*Updated: 2026-03-19 -- added ROM trap and pulse sync note*
+
+## Pulse tape playback
+
+TZX files (and other tape formats with non-standard encoding) are converted by the JS frontend into an array of pulse durations measured in T-states. This array is stored in WASM linear memory at `PULSE_BASE` (0x200000).
+
+During each frame, the CPU loop advances the pulse position in lockstep with executed T-states. Each pulse duration represents the time until the tape signal toggles. The EAR bit (bit 6 of port 0xFE IN) reflects the current signal level (`tapeLevel`), toggling each time a pulse completes.
+
+This enables custom loaders (Speedlock, Alkatraz, etc.) that do not use the ROM loading routine and instead read the tape signal directly via port 0xFE.
+
+Block boundary tracking (`BLOCK_BOUNDS_BASE`) maps each TAP-style block index to its starting pulse index. This keeps the ROM trap and pulse playback synchronized: when the ROM trap loads a standard block, the pulse position jumps ahead to the next block boundary.
+
+*Updated: 2026-03-19 -- new section for pulse tape playback*
 
 ## Interrupts
 

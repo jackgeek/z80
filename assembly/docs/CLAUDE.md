@@ -1,6 +1,6 @@
 # Assembly — Z80 Core
 
-This directory contains the complete Z80 CPU and ZX Spectrum 48K hardware emulation in a single AssemblyScript file (`index.ts`, ~1780 lines). It compiles to WASM and is the performance-critical core of the emulator.
+This directory contains the complete Z80 CPU and ZX Spectrum 48K hardware emulation in a single AssemblyScript file (`index.ts`, ~1900 lines). It compiles to WASM and is the performance-critical core of the emulator.
 
 ## Entry Points (Exported to JS)
 
@@ -12,11 +12,22 @@ This directory contains the complete Z80 CPU and ZX Spectrum 48K hardware emulat
 | `setKempston(value)` | Set Kempston joystick port value |
 | `getTapeActive()` | Check if tape data is loaded and available |
 | `setTapeLength(len)` | Set length of TAP data in the tape buffer |
+| `getPulseBaseAddr()` | Return base address of the pulse duration buffer in WASM memory |
+| `loadPulseByte(offset, val)` | Write a byte into the pulse duration buffer |
+| `setPulseCount(count)` | Set total number of pulse durations and reset playback state |
+| `setBlockBound(index, pulseIndex)` | Map a TAP block index to its starting pulse index |
+| `setBlockBoundsCount(count)` | Set number of block boundary entries |
+| `isTapePlaying()` | Check if pulse tape playback is currently active |
+| `getPulsePos()` | Return current pulse index during playback |
+| `getTapeLevel()` | Return current tape signal level (0 or 1) |
+
+*Updated: 2026-03-19 -- added pulse tape playback exports*
 
 ## Key Concepts
 
 - **Memory-mapped I/O**: Port 0xFE handles both keyboard input and border/beeper output
 - **ROM trap**: Tape loading is intercepted at PC=0x0556 (the ROM's LD-BYTES routine) for instant loading
+- **Pulse tape playback**: TZX files are converted to an array of pulse durations that drive the EAR bit in real time, enabling custom loaders (Speedlock, etc.) that bypass the ROM routine. Block boundaries keep the ROM trap and pulse stream in sync.
 - **Flag lookup tables**: Pre-computed tables for S, Z, P, H flags avoid per-instruction calculation
 - **Screen rendering**: ULA emulation converts the Spectrum's peculiar screen memory layout to RGBA pixels
 - **Beeper sampling**: The 1-bit beeper output is sampled every ~79 T-cycles into a buffer that JS reads for audio

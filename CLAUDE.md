@@ -21,6 +21,7 @@ src/
   main.js            # WASM loader, keyboard, tape loading, audio, frame loop
   joystick.js        # Fullscreen mode + touch joystick overlay
   vkeyboard.js       # Virtual keyboard (ZX Spectrum replica)
+  audio-worklet.js   # AudioWorklet processor (beeper audio, off-main-thread)
   cube.js            # Three.js 3D cube visualization
   48.rom             # ZX Spectrum 48K ROM binary (16 KB)
   spectrum.wasm      # Compiled WASM (build artifact, checked in for GitHub Pages)
