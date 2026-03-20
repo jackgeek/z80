@@ -4,15 +4,18 @@ The `src/` directory is the complete deployable website. It contains vanilla Jav
 
 ## Modules
 
-### main.js (642 lines)
+### main.js (~1100 lines)
 The central controller. Handles:
 - WASM instantiation and shared memory setup
 - Keyboard event handling (maps PC keys to Spectrum 8×5 matrix)
 - Frame loop (`requestAnimationFrame` throttled to 50 Hz)
 - Screen rendering (copies WASM screen buffer to canvas via `ImageData`)
 - Audio pipeline (reads WASM audio buffer → high-pass filter → Web Audio)
-- File loading (drag-and-drop + file picker, parses TAP/TZX/ZIP formats)
-- Reset and pause controls
+- File loading (drag-and-drop + file picker, parses TAP/TZX/ZIP/.z80 formats)
+- Snapshot save/restore (`.z80` v1/v2/v3 format — save as v3, load all versions)
+- Reset, pause, and Save State controls
+
+*Updated: 2026-03-20 - Added .z80 snapshot save/restore support*
 
 ### joystick.js (231 lines)
 Fullscreen mode and touch joystick overlay:
@@ -53,3 +56,6 @@ Three.js 3D cube visualization (loaded from CDN):
 | `.tzx` | Extension + `ZXTape!` header | Converted to TAP on-the-fly (extracts data blocks from block types 0x10, 0x11, 0x14) |
 | `.zip` | Extension + PK header | Decompressed via `DecompressionStream`, first .tap/.tzx extracted |
 | `.rom` | Exactly 16,384 bytes | Written directly to ROM area in WASM memory |
+| `.z80` | Extension | Snapshot: restores full CPU state + 48 KB RAM (supports v1, v2, v3) |
+
+*Updated: 2026-03-20 - Added .z80 snapshot format*

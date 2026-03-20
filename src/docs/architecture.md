@@ -95,6 +95,25 @@ Complex multi-block format. The loader extracts standard data blocks (types 0x10
 ### ZIP Format
 Uses the browser's `DecompressionStream` API for deflate. Parses the ZIP local file headers to find the first `.tap` or `.tzx` file, decompresses it, then processes it as above.
 
+### .z80 Snapshot Format
+
+*Added: 2026-03-20*
+
+The `.z80` format is the industry-standard ZX Spectrum snapshot format. Saves/restores complete machine state (48 KB RAM + all CPU registers + interrupt state + border colour).
+
+**Saving (v3 format):**
+- 30-byte header (registers: A, F, BC, DE, HL, SP, I, R, IX, IY, shadow registers, IFF1/2, IM, border)
+- 56-byte extended header (actual PC, hardware mode = 48K)
+- 3 compressed pages (16 KB each): page 8 (0x4000), page 4 (0x8000), page 5 (0xC000)
+- ED ED RLE compression: `ED ED count byte` for repeated bytes
+
+**Loading (v1, v2, v3):**
+- v1: PC in header bytes 6-7 is nonzero, compressed RAM follows header
+- v2/v3: PC=0 in header, extended header contains real PC, paged data blocks follow
+- Auto-detected by header fields; restores via WASM setter functions + `writeRAM()`
+
+**Functions:** `saveZ80()`, `loadZ80()`, `compressZ80Page()`, `decompressZ80()`
+
 ## Fullscreen & Joystick
 
 Fullscreen mode (`joystick.js`):
