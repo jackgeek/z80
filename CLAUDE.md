@@ -51,6 +51,7 @@ See [docs/architecture.md](docs/architecture.md) for full system design.
 - **Static hosting** — the `src/` directory is the entire deployable site (GitHub Pages)
 - **AssemblyScript idioms** — `@inline` on hot paths, `unchecked()` array access, explicit `u8`/`u16` casts
 - **ROM trap + pulse playback** — standard blocks load instantly via ROM trap at PC=0x0556; TZX files also generate a pulse stream for timing-accurate custom loader support
+- **Snapshot save/restore** — full machine state (RAM + CPU registers) saved/loaded as `.z80` format (v1/v2/v3 compatible with other emulators)
 
 ## Deeper Documentation
 

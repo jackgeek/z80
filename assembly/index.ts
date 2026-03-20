@@ -1902,3 +1902,36 @@ export function readMem(addr: u16): u8 { return readByte(addr); }
 export function getIM(): u8 { return <u8>IM; }
 export function getIFF1(): u8 { return IFF1 ? 1 : 0; }
 export function getI(): u8 { return I_reg; }
+
+// ── Snapshot getters (for .z80 save) ──
+export function getR(): u8 { return R_reg; }
+export function getIFF2(): u8 { return IFF2 ? 1 : 0; }
+export function getHalted(): u8 { return halted ? 1 : 0; }
+export function getA2(): u8 { return A2; }
+export function getF2(): u8 { return F2; }
+export function getBC_prime(): u16 { return (<u16>B2 << 8) | <u16>C2; }
+export function getDE_prime(): u16 { return (<u16>D2 << 8) | <u16>E2; }
+export function getHL_prime(): u16 { return (<u16>H2 << 8) | <u16>L2; }
+
+// ── Snapshot setters (for .z80 load) ──
+export function setPC_ext(v: u16): void { PC = v; }
+export function setSP_ext(v: u16): void { SP = v; }
+export function setA_ext(v: u8): void { A = v; }
+export function setF_ext(v: u8): void { F = v; }
+export function setBC_ext(v: u16): void { B = <u8>(v >> 8); C = <u8>(v & 0xFF); }
+export function setDE_ext(v: u16): void { D = <u8>(v >> 8); E = <u8>(v & 0xFF); }
+export function setHL_ext(v: u16): void { H = <u8>(v >> 8); L = <u8>(v & 0xFF); }
+export function setIX_ext(v: u16): void { IX = v; }
+export function setIY_ext(v: u16): void { IY = v; }
+export function setI_ext(v: u8): void { I_reg = v; }
+export function setR_ext(v: u8): void { R_reg = v; }
+export function setIM_ext(v: u8): void { IM = v; }
+export function setIFF1_ext(v: u8): void { IFF1 = v != 0; }
+export function setIFF2_ext(v: u8): void { IFF2 = v != 0; }
+export function setHalted_ext(v: u8): void { halted = v != 0; }
+export function setA2_ext(v: u8): void { A2 = v; }
+export function setF2_ext(v: u8): void { F2 = v; }
+export function setBC_prime_ext(v: u16): void { B2 = <u8>(v >> 8); C2 = <u8>(v & 0xFF); }
+export function setDE_prime_ext(v: u16): void { D2 = <u8>(v >> 8); E2 = <u8>(v & 0xFF); }
+export function setHL_prime_ext(v: u16): void { H2 = <u8>(v >> 8); L2 = <u8>(v & 0xFF); }
+export function setBorderColor_ext(v: u8): void { borderColor = v; }

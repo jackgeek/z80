@@ -13,6 +13,15 @@ This directory contains the complete Z80 CPU and ZX Spectrum 48K hardware emulat
 | `getTapeActive()` | Check if tape data is loaded and available |
 | `setTapeLength(len)` | Set length of TAP data in the tape buffer |
 
+## Snapshot Support (Exported Getters/Setters)
+
+For `.z80` snapshot save/restore, additional exports expose all CPU state:
+
+- **Getters**: `getA()`, `getF()`, `getBC2()`, `getDE2()`, `getHL2()`, `getPC()`, `getSP()`, `getIX()`, `getIY()`, `getI()`, `getR()`, `getIM()`, `getIFF1()`, `getIFF2()`, `getHalted()`, `getA2()`, `getF2()`, `getBC_prime()`, `getDE_prime()`, `getHL_prime()`, `getBorderColor()`
+- **Setters**: `setPC_ext()`, `setSP_ext()`, `setA_ext()`, `setF_ext()`, `setBC_ext()`, `setDE_ext()`, `setHL_ext()`, `setIX_ext()`, `setIY_ext()`, `setI_ext()`, `setR_ext()`, `setIM_ext()`, `setIFF1_ext()`, `setIFF2_ext()`, `setHalted_ext()`, `setA2_ext()`, `setF2_ext()`, `setBC_prime_ext()`, `setDE_prime_ext()`, `setHL_prime_ext()`, `setBorderColor_ext()`
+
+Setters use the `_ext` suffix to avoid name collisions with internal helpers like `setBC()`.
+
 ## Key Concepts
 
 - **Memory-mapped I/O**: Port 0xFE handles both keyboard input and border/beeper output

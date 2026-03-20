@@ -382,7 +382,7 @@
 </style>
 </head>
 <body>
-  <div id="version">v1.0.16</div>
+  <div id="version">v1.0.17</div>
   <h1>ZX Spectrum 48K</h1>
 
   <div id="main-area">
@@ -422,9 +422,10 @@
           <input type="file" id="rom-input" accept=".rom,.bin">
         </label>
         <label class="btn">
-          Load TAP / TZX
-          <input type="file" id="tap-input">
+          Load TAP / TZX / Z80
+          <input type="file" id="tap-input" accept=".tap,.tzx,.z80,.zip">
         </label>
+        <button id="save-btn">Save State</button>
         <button id="reset-btn">Reset</button>
         <button id="pause-btn">Pause</button>
         <button id="fs-btn">⛶ Fullscreen</button>
