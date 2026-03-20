@@ -158,6 +158,57 @@
   #status { font-size: 0.8em; color: #777; text-align: center; }
   #keyboard-help { font-size: 0.72em; color: #555; text-align: center; line-height: 1.5; }
 
+  /* ── Debug memory view ── */
+  #debug-toggle-label, #turbo-toggle-label {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 0.88em; color: #aaa; cursor: pointer; user-select: none;
+  }
+  #debug-toggle-label input[type="checkbox"],
+  #turbo-toggle-label input[type="checkbox"] {
+    display: inline; width: 15px; height: 15px;
+    cursor: pointer; accent-color: #ff6b6b;
+  }
+  #debug-container {
+    width: 100%; max-width: 1400px;
+    margin-top: 16px; padding: 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  #debug-canvas-wrap {
+    width: 256px; height: 256px;
+    overflow: hidden;
+    border: 1px solid #333; border-radius: 4px;
+  }
+  #debug-canvas-wrap.zoomed {
+    overflow: auto;
+  }
+  #debug-canvas-inner {
+    /* sized by JS to match canvas × zoom so scrollbars appear */
+    width: 256px; height: 256px;
+  }
+  #debug-canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    transform-origin: top left;
+  }
+  #debug-controls {
+    font-size: 0.85em; color: #aaa;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #debug-controls input[type="range"] { width: 120px; accent-color: #ff6b6b; }
+  #debug-info {
+    display: flex; gap: 12px; align-items: center;
+    font-family: 'Courier New', monospace; font-size: 0.85em; color: #ccc;
+  }
+  #debug-edit {
+    background: #2d2d5e; color: #e0e0e0;
+    border: 1px solid #4a4a8a; border-radius: 3px;
+    padding: 3px 6px; font-family: inherit; font-size: 1em;
+    width: 3em; text-align: center;
+  }
+  #debug-edit:disabled { opacity: 0.4; }
+  body.js-fullscreen #debug-container { display: none !important; }
+
   /* ── Drop overlay ── */
   #drop-overlay {
     display: none; position: fixed; inset: 0;
@@ -382,7 +433,7 @@
 </style>
 </head>
 <body>
-  <div id="version">v1.0.17</div>
+  <div id="version">v1.0.18</div>
   <h1>ZX Spectrum 48K</h1>
 
   <div id="main-area">
@@ -440,6 +491,9 @@
         <label id="turbo-toggle-label">
           <input type="checkbox" id="turbo-toggle"> Max speed
         </label>
+        <label id="debug-toggle-label">
+          <input type="checkbox" id="debug-toggle"> Debug
+        </label>
       </div>
 
       <div id="status">Loading...</div>
@@ -452,11 +506,29 @@
 
   </div>
 
+  <div id="debug-container" style="display:none;">
+    <div id="debug-canvas-wrap">
+      <div id="debug-canvas-inner">
+        <canvas id="debug-canvas" width="256" height="256"></canvas>
+      </div>
+    </div>
+    <div id="debug-controls">
+      <label>Zoom: <input type="range" id="debug-zoom" min="1" max="8" value="1" step="1"> <span id="debug-zoom-label">1×</span></label>
+    </div>
+    <div id="debug-info">
+      <span id="debug-addr">—</span>
+      <span id="debug-value">—</span>
+      <span id="debug-region">—</span>
+      <input type="text" id="debug-edit" maxlength="2" size="2" disabled placeholder="--">
+    </div>
+  </div>
+
   <button id="fs-exit-btn" title="Exit fullscreen">✕</button>
   <div id="drop-overlay">Drop .tap / .tzx / .zip / .rom here</div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="main.js"></script>
+  <script src="debug-view.js"></script>
   <script src="cube.js"></script>
   <script src="vkeyboard.js"></script>
   <script src="joystick.js"></script>

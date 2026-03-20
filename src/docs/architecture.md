@@ -134,3 +134,26 @@ Optional visualization using Three.js (loaded from CDN):
 - Each frame: fills with border color, draws the scaled Spectrum screen centered, updates texture
 - Cube rotates continuously on all 3 axes
 - Toggle via checkbox; hidden by default on mobile
+
+## Memory Debug View (debug-view.js)
+
+*Added: 2026-03-20*
+
+Real-time memory visualization displaying the Z80's full 64 KB address space as a 256×256 grayscale image.
+
+**Rendering pipeline:**
+- Reads `Uint8Array` view of WASM linear memory at offset `MEM_BASE` (0x100000), 65,536 bytes
+- Uploads as a `LUMINANCE` texture via `texSubImage2D()` — single byte per pixel, GPU converts to grayscale
+- Falls back to Canvas 2D `putImageData()` if WebGL is unavailable
+- Renders conditionally: only when the "Debug" checkbox is checked (`debugVisible` flag in `main.js`)
+
+**Performance characteristics:**
+- ~64 KB texture upload per frame via WebGL (negligible for modern GPUs)
+- Zero-copy `Uint8Array` view into WASM memory — no data copying
+- No per-pixel JavaScript loops in the WebGL path
+- Separate WebGL context from the main screen to avoid state conflicts
+
+**Interaction (paused only):**
+- Click a pixel → fixed info panel shows address (hex), value (hex + decimal), ROM/RAM indicator
+- RAM bytes editable via hex input; writes via `wasm.writeRAM(addr, val)`
+- Zoom slider (1×–8×) applies CSS `transform: scale()` with scrollable container

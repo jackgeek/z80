@@ -9,6 +9,7 @@ let memory = null;
 let running = false;
 let paused = false;
 let turboMode = false;
+  let debugVisible = false;
 let romLoaded = false;
 let animFrameId = null;
 let cachedRomData = null; // keep a copy for resets
@@ -279,6 +280,14 @@ function loadROM(data, fromUserGesture = true) {
   paused = false;
   setStatus('ROM loaded. Running. Drag & drop a .tap file to load software.');
   if (!animFrameId) requestAnimationFrame(frameLoop);
+
+  // Initialise debug memory view (debug-view.js)
+  if (typeof debugView !== 'undefined' && debugView.init) {
+    debugView.init(memory, wasm, {
+      isPaused: () => paused,
+      renderFrame: renderFrame
+    });
+  }
 }
 
 // ============================================================
@@ -820,6 +829,9 @@ function frameLoop(timestamp) {
       setStatus('Emulation error: ' + e.message);
       running = false;
     }
+    if (debugVisible) {
+      try { debugView.render(memory.buffer); } catch (e) { console.warn('Debug view error:', e); }
+    }
     lastFrameTime = timestamp;
     return;
   }
@@ -846,6 +858,10 @@ function frameLoop(timestamp) {
     setStatus('Emulation error: ' + e.message);
     running = false;
   }
+
+  if (debugVisible) {
+    try { debugView.render(memory.buffer); } catch (e) { console.warn('Debug view error:', e); }
+  }
 }
 
 // ============================================================
@@ -853,6 +869,9 @@ function frameLoop(timestamp) {
 // ============================================================
 document.addEventListener('keydown', (e) => {
   if (!wasm || !running) return;
+
+  // Don't intercept keys when typing in an input field (e.g. debug edit)
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
   // Prevent default for emulated keys
   const code = e.code;
@@ -875,6 +894,8 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('keyup', (e) => {
   if (!wasm || !running) return;
+
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
   const code = e.code;
   if (KEY_MAP[code] || COMPOUND_KEYS[code]) {
@@ -984,6 +1005,12 @@ document.getElementById('turbo-toggle').addEventListener('change', (e) => {
   setStatus(turboMode ? 'Max speed.' : 'Normal speed.');
 });
 
+document.getElementById('debug-toggle').addEventListener('change', (e) => {
+  debugVisible = e.target.checked;
+  document.getElementById('debug-container').style.display = debugVisible ? 'flex' : 'none';
+  if (debugVisible && memory) debugView.render(memory.buffer);
+});
+
 document.getElementById('reset-btn').addEventListener('click', () => {
   if (!wasm || !cachedRomData) return;
   wasm.init();
@@ -1001,6 +1028,7 @@ document.getElementById('pause-btn').addEventListener('click', () => {
   paused = !paused;
   document.getElementById('pause-btn').textContent = paused ? 'Resume' : 'Pause';
   setStatus(paused ? 'Paused.' : 'Running.');
+  if (paused && debugVisible) debugView.render(memory.buffer);
 });
 
 // ============================================================

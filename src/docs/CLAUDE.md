@@ -33,6 +33,17 @@ Faithful ZX Spectrum keyboard replica:
 - Touch-friendly: 44px keys on mobile, 56px on desktop
 - Rainbow stripe decoration on the right edge
 
+### debug-view.js (~180 lines)
+Live memory debug view:
+- Renders the full 64 KB Z80 address space (0x0000–0xFFFF) as a 256×256 grayscale heatmap
+- WebGL LUMINANCE texture upload (~64 KB/frame) with Canvas 2D fallback
+- Zoom slider (1×–8×) via CSS transform
+- Click-to-inspect when paused: shows address, value (hex + decimal), ROM/RAM indicator
+- Inline hex editor for RAM bytes (Enter to commit)
+- Toggle on/off via "Debug" checkbox; hidden by default
+
+*Added: 2026-03-20*
+
 ### cube.js (109 lines)
 Three.js 3D cube visualization (loaded from CDN):
 - Creates a 512×512 texture canvas showing the Spectrum screen with border color
@@ -47,6 +58,7 @@ Three.js 3D cube visualization (loaded from CDN):
 - **Joystick → keyboard**: `joystick.js` writes to the same `keyState` array or calls `wasm.setKempston()` directly
 - **Virtual keyboard → keyboard**: `vkeyboard.js` calls back into `main.js` key handlers
 - **Cube → screen**: `cube.js` reads the main `<canvas>` element to create its texture
+- **Debug → WASM memory**: `debug-view.js` reads WASM linear memory at `MEM_BASE` (0x100000) directly; uses `wasm.readMem()` / `wasm.writeRAM()` for inspect/edit
 
 ## File Formats
 
