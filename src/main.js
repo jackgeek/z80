@@ -8,6 +8,7 @@ let wasm = null;
 let memory = null;
 let running = false;
 let paused = false;
+let turboMode = false;
 let romLoaded = false;
 let animFrameId = null;
 let cachedRomData = null; // keep a copy for resets
@@ -808,6 +809,21 @@ function frameLoop(timestamp) {
 
   if (!running || paused || !romLoaded) return;
 
+  if (turboMode) {
+    // Max speed: run as many frames as possible per rAF tick, render only the last
+    try {
+      const TURBO_FRAMES = 50; // ~50 Z80 frames per rAF tick ≈ 50× speed
+      for (let i = 0; i < TURBO_FRAMES; i++) wasm.frame();
+      renderFrame();
+    } catch (e) {
+      console.error('Emulation error:', e);
+      setStatus('Emulation error: ' + e.message);
+      running = false;
+    }
+    lastFrameTime = timestamp;
+    return;
+  }
+
   const elapsed = timestamp - lastFrameTime;
   if (elapsed < FRAME_INTERVAL * 0.9) return; // throttle to ~50fps
 
@@ -961,6 +977,12 @@ document.addEventListener('drop', (e) => {
 // BUTTONS
 // ============================================================
 document.getElementById('save-btn').addEventListener('click', () => saveZ80());
+
+document.getElementById('turbo-toggle').addEventListener('change', (e) => {
+  turboMode = e.target.checked;
+  lastFrameTime = 0; // reset throttle anchor when switching back to normal
+  setStatus(turboMode ? 'Max speed.' : 'Normal speed.');
+});
 
 document.getElementById('reset-btn').addEventListener('click', () => {
   if (!wasm || !cachedRomData) return;
