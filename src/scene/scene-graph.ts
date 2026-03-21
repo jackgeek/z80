@@ -94,20 +94,23 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
 
   // ── Joystick ──────────────────────────────────────────────────────────────
   const joyResult: Joystick3DResult = createJoystick3D(app);
-  joyResult.joystickEntity.setLocalPosition(-2.2, -2.8, 0);
-  joyResult.joystickEntity.setLocalScale(0.6, 0.6, 0.6);
+  joyResult.joystickEntity.setLocalPosition(-2.0, -2.5, 0.4);
+  joyResult.joystickEntity.setLocalEulerAngles(70, 0, 0);
+  joyResult.joystickEntity.setLocalScale(0.5, 0.5, 0.5);
   app.root.addChild(joyResult.joystickEntity);
 
   // ── Fire Button ───────────────────────────────────────────────────────────
   const fireResult: FireButtonResult = createFireButton(app);
-  fireResult.fireEntity.setLocalPosition(2.2, -2.8, 0);
-  fireResult.fireEntity.setLocalScale(0.6, 0.6, 0.6);
+  fireResult.fireEntity.setLocalPosition(2.0, -2.5, 0.4);
+  fireResult.fireEntity.setLocalEulerAngles(70, 0, 0);
+  fireResult.fireEntity.setLocalScale(0.5, 0.5, 0.5);
   app.root.addChild(fireResult.fireEntity);
 
   // ── Menu Button ───────────────────────────────────────────────────────────
   const menuResult: MenuButtonResult = createMenuButton(app);
-  menuResult.menuButtonEntity.setLocalPosition(0, -2.8, 0);
-  menuResult.menuButtonEntity.setLocalScale(0.6, 0.6, 0.6);
+  menuResult.menuButtonEntity.setLocalPosition(0, -2.5, 0.4);
+  menuResult.menuButtonEntity.setLocalEulerAngles(70, 0, 0);
+  menuResult.menuButtonEntity.setLocalScale(0.5, 0.5, 0.5);
   app.root.addChild(menuResult.menuButtonEntity);
 
   // ── Menu Codex ─────────────────────────────────────────────────────────
