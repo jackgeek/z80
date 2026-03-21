@@ -1,5 +1,5 @@
 // ZX Spectrum 48K Emulator — Steam-Punk 3D UI Entry Point
-// PlayCanvas scene with WASM emulator core
+// PlayCanvas scene with WASM emulator core + XState scene management
 
 import { initPlayCanvasApp } from './scene/app.js';
 import { buildSceneGraph } from './scene/scene-graph.js';
@@ -8,9 +8,11 @@ import { initWasm } from './emulator/wasm-loader.js';
 import { tickEmulatorFrame } from './emulator/frame-loop.js';
 import { updateMonitorTexture } from './entities/monitor.js';
 import { getWasm, getMemory, isRunning } from './emulator/state.js';
-import { initInputBridge } from './input/input-bridge.js';
+import { initInputBridge, setSceneActor } from './input/input-bridge.js';
 import { setGlobalStatusFn } from './ui/status-bridge.js';
 import { initFileHandler } from './ui/file-handler.js';
+import { createSceneMachineActor } from './state-machine/machine.js';
+import { updateTweens } from './scene/scene-transitions.js';
 
 const FRAME_INTERVAL = 1000 / 50; // 20ms per PAL frame
 
@@ -18,13 +20,17 @@ async function main(): Promise<void> {
   // 1. Create PlayCanvas application (full viewport)
   const app = initPlayCanvasApp();
 
-  // 2. Build 3D scene graph (camera, lights, brass monitor)
+  // 2. Build 3D scene graph (camera, lights, all entities)
   const entities = buildSceneGraph(app);
 
   // 3. Create status overlay for messages
   const { setStatusText } = createStatusOverlay(app);
 
-  // 4. Wire PlayCanvas update loop — emulator tick + texture update
+  // 4. Create and start XState scene state machine
+  const sceneActor = createSceneMachineActor(entities);
+  sceneActor.start();
+
+  // 5. Wire PlayCanvas update loop — emulator tick + texture update + tweens
   let frameAccum = 0;
 
   app.on('update', (dt: number) => {
@@ -42,19 +48,39 @@ async function main(): Promise<void> {
     if (wasm && memory && isRunning()) {
       updateMonitorTexture(entities.screenTexture, memory, wasm);
     }
+
+    // Update scene transition tweens
+    updateTweens(dt);
   });
 
-  // 5. Wire global status function for media modules
+  // 6. Wire global status function for media modules
   setGlobalStatusFn(setStatusText);
 
-  // 6. Load WASM and ROM
+  // 7. Load WASM and ROM
   await initWasm(setStatusText);
 
-  // 7. Initialize input system (physical keyboard + 3D entity click/touch)
+  // 8. Initialize input system + wire state machine actor
   initInputBridge(app, entities);
+  setSceneActor(sceneActor);
 
-  // 8. Initialize file handling (drag-drop + hidden file input)
+  // 9. Initialize file handling (drag-drop + hidden file input)
   initFileHandler();
+
+  // 10. Detect initial orientation and send to state machine
+  const orientation = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
+  if (orientation === 'landscape') {
+    sceneActor.send({ type: 'ORIENTATION_CHANGE', orientation: 'landscape' });
+  }
+
+  // 11. Listen for orientation changes
+  let currentOrientation = orientation;
+  window.addEventListener('resize', () => {
+    const newOrientation = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
+    if (newOrientation !== currentOrientation) {
+      currentOrientation = newOrientation;
+      sceneActor.send({ type: 'ORIENTATION_CHANGE', orientation: newOrientation });
+    }
+  });
 }
 
 main().catch(console.error);

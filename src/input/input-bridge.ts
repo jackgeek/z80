@@ -4,6 +4,7 @@ import * as pc from 'playcanvas';
 import { KEY_MAP, COMPOUND_KEYS } from './keyboard.js';
 import { getWasm, isRunning } from '../emulator/state.js';
 import { initAudio } from '../audio/audio.js';
+import { GestureDetector } from './gesture-detector.js';
 import type { SceneEntities } from '../scene/scene-graph.js';
 
 let audioInitialized = false;
@@ -38,6 +39,15 @@ export function setJoystickType(type: JoystickType): void {
 export function getJoystickType(): JoystickType {
   return joystickType;
 }
+
+// State machine actor reference — set after creation
+let sceneActor: any = null;
+
+export function setSceneActor(actor: any): void {
+  sceneActor = actor;
+}
+
+const gestureDetector = new GestureDetector();
 
 export function initInputBridge(app: pc.Application, entities: SceneEntities): void {
   // ── Physical keyboard input ─────────────────────────────────────────────
@@ -112,7 +122,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
     // Menu button press
     if (hit.tags.has('menu-button')) {
-      console.log('Menu button pressed — state machine not yet wired');
+      if (sceneActor) sceneActor.send({ type: 'MENU_OPEN' });
       return;
     }
 
@@ -180,29 +190,46 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     // (handled on next keyDown)
   }
 
+  // ── Gesture-aware pointer events ──────────────────────────────────────────
+
+  function pointerDown(screenX: number, screenY: number): void {
+    // Start gesture tracking on any swipeable entity
+    const hit = raycastFromScreen(app, camera, screenX, screenY);
+    gestureDetector.beginTracking(screenX, screenY, hit);
+    handlePointerDown(screenX, screenY);
+  }
+
+  function pointerUp(screenX: number, screenY: number): void {
+    // Check for swipe gesture before handling pointer up
+    const swipe = gestureDetector.endTracking(screenX, screenY);
+    if (swipe && sceneActor) {
+      sceneActor.send({ type: 'SWIPE', direction: swipe.direction });
+    } else {
+      handlePointerUp(screenX, screenY);
+    }
+  }
+
   // Mouse events
   canvas.addEventListener('mousedown', (e: MouseEvent) => {
-    handlePointerDown(e.offsetX, e.offsetY);
+    pointerDown(e.offsetX, e.offsetY);
   });
   canvas.addEventListener('mouseup', (e: MouseEvent) => {
-    handlePointerUp(e.offsetX, e.offsetY);
+    pointerUp(e.offsetX, e.offsetY);
   });
 
   // Touch events
   canvas.addEventListener('touchstart', (e: TouchEvent) => {
     e.preventDefault();
-    for (const touch of Array.from(e.changedTouches)) {
-      const rect = canvas.getBoundingClientRect();
-      handlePointerDown(touch.clientX - rect.left, touch.clientY - rect.top);
-    }
+    const touch = e.changedTouches[0];
+    const rect = canvas.getBoundingClientRect();
+    pointerDown(touch.clientX - rect.left, touch.clientY - rect.top);
   }, { passive: false });
 
   canvas.addEventListener('touchend', (e: TouchEvent) => {
     e.preventDefault();
-    for (const touch of Array.from(e.changedTouches)) {
-      const rect = canvas.getBoundingClientRect();
-      handlePointerUp(touch.clientX - rect.left, touch.clientY - rect.top);
-    }
+    const touch = e.changedTouches[0];
+    const rect = canvas.getBoundingClientRect();
+    pointerUp(touch.clientX - rect.left, touch.clientY - rect.top);
   }, { passive: false });
 }
 

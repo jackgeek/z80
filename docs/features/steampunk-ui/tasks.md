@@ -382,12 +382,12 @@
 
 ### Phase 4: State Machine + Scene Transitions
 
-**Status**: Not Started
-**Progress**: 0/10 tasks complete (0%)
-**Phase Started**: TBD
-**Phase Completed**: TBD
+**Status**: Complete
+**Progress**: 10/10 tasks complete (100%)
+**Phase Started**: 2026-03-21
+**Phase Completed**: 2026-03-21
 
-- [ ] 4.0 Implement XState v5 scene state machine with tween-based scene transitions
+- [x] 4.0 Implement XState v5 scene state machine with tween-based scene transitions
   - **Relevant Documentation:**
     - `docs/features/steampunk-ui/design.md` - State machine spec, scene layouts, transition design, XState sketch
     - `CLAUDE.md` - Project overview, key conventions
