@@ -4,6 +4,7 @@ emsdk/
 
 # Build output
 build/
+dist/
 
 # Binary files
 src/spectrum.wasm

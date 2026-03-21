@@ -1,24 +1,27 @@
 // Fullscreen mode + touch joystick overlay
 
-(function () {
+import { getWasm } from '../emulator/state.js';
+import { specKeyDown, specKeyUp } from './vkeyboard.js';
 
-  // ── Key mappings ──────────────────────────────────────────────────────────
-  const KEYMAPS = {
-    sinclair1: {
-      up:    { row: 4, bit: 0x02 }, // 9
-      down:  { row: 4, bit: 0x04 }, // 8
-      left:  { row: 4, bit: 0x10 }, // 6
-      right: { row: 4, bit: 0x08 }, // 7
-      fire:  { row: 4, bit: 0x01 }, // 0
-    },
-    cursor: {
-      up:    { row: 4, bit: 0x08 }, // 7
-      down:  { row: 4, bit: 0x10 }, // 6
-      left:  { row: 3, bit: 0x10 }, // 5
-      right: { row: 4, bit: 0x04 }, // 8
-      fire:  { row: 4, bit: 0x01 }, // 0
-    },
-  };
+// ── Key mappings ──────────────────────────────────────────────────────────
+const KEYMAPS = {
+  sinclair1: {
+    up:    { row: 4, bit: 0x02 }, // 9
+    down:  { row: 4, bit: 0x04 }, // 8
+    left:  { row: 4, bit: 0x10 }, // 6
+    right: { row: 4, bit: 0x08 }, // 7
+    fire:  { row: 4, bit: 0x01 }, // 0
+  },
+  cursor: {
+    up:    { row: 4, bit: 0x08 }, // 7
+    down:  { row: 4, bit: 0x10 }, // 6
+    left:  { row: 3, bit: 0x10 }, // 5
+    right: { row: 4, bit: 0x04 }, // 8
+    fire:  { row: 4, bit: 0x01 }, // 0
+  },
+};
+
+export function initJoystick() {
 
   // ── State ─────────────────────────────────────────────────────────────────
   let joyType = 'sinclair1';
@@ -40,7 +43,8 @@
 
     if (joyType === 'kempston') {
       const changed = dirs.some(d => next[d] !== joy[d]);
-      if (changed && typeof wasm !== 'undefined' && wasm && wasm.setKempston) {
+      const wasm = getWasm();
+      if (changed && wasm && wasm.setKempston) {
         wasm.setKempston(
           (next.right ? 0x01 : 0) | (next.left  ? 0x02 : 0) |
           (next.down  ? 0x04 : 0) | (next.up    ? 0x08 : 0) |
@@ -54,8 +58,8 @@
           if (next[d] === joy[d]) return;
           const k = map[d];
           if (!k) return;
-          if (next[d]) window.specKeyDown(k.row, k.bit);
-          else         window.specKeyUp(k.row, k.bit);
+          if (next[d]) specKeyDown(k.row, k.bit);
+          else         specKeyUp(k.row, k.bit);
         });
       }
     }
@@ -228,4 +232,4 @@
     releaseAll();
   });
 
-})();
+}

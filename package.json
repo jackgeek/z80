@@ -1,12 +1,19 @@
 {
   "name": "zx-spectrum-emulator",
-  "version": "1.0.18",
+  "version": "2.0.0",
   "scripts": {
-    "build": "node -e \"require('fs').mkdirSync('build',{recursive:true})\" && asc assembly/index.ts --outFile build/spectrum.wasm --runtime stub --optimizeLevel 3 --importMemory --initialMemory 256 --maximumMemory 256 && node -e \"require('fs').copyFileSync('build/spectrum.wasm','src/spectrum.wasm')\"",
-    "serve": "npx http-server src -p 8080 -c-1",
-    "dev": "npm run build && npm run serve"
+    "build:wasm": "node -e \"require('fs').mkdirSync('build',{recursive:true})\" && asc assembly/index.ts --outFile build/spectrum.wasm --runtime stub --optimizeLevel 3 --importMemory --initialMemory 256 --maximumMemory 256 && node -e \"require('fs').copyFileSync('build/spectrum.wasm','public/spectrum.wasm')\"",
+    "build:web": "vite build",
+    "build": "npm run build:wasm && npm run build:web",
+    "dev": "npm run build:wasm && vite",
+    "serve": "vite preview --port 8080",
+    "asm": "node packages/assembler/cli.js"
   },
   "devDependencies": {
-    "assemblyscript": "^0.27.0"
+    "assemblyscript": "^0.27.0",
+    "vite": "^6.4.1"
+  },
+  "dependencies": {
+    "three": "^0.183.2"
   }
 }

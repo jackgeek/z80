@@ -4,59 +4,46 @@
 
 ### Phase 1: Infrastructure Setup
 
-**Status**: Not Started
-**Progress**: 0/7 tasks complete (0%)
-**Phase Started**: TBD
-**Phase Completed**: TBD
+**Status**: Complete
+**Progress**: 7/7 tasks complete (100%)
+**Phase Started**: 2026-03-21 20:41:00 UTC+0
+**Phase Completed**: 2026-03-21 20:44:00 UTC+0
 
-- [ ] 1.0 Set up Vite build infrastructure and public/ directory
+- [x] 1.0 Set up Vite build infrastructure and public/ directory
   - **Relevant Documentation:**
     - `docs/features/project-restructure/design.md` - Feature requirements and new folder structure
     - `CLAUDE.md` - Project overview, build conventions, key conventions
     - `docs/architecture.md` - System architecture, WASM/JS boundary, build pipeline
     - `docs/setup.md` - Build instructions, dev workflow
     - `src/docs/CLAUDE.md` - Frontend module overview
-  - [ ] 1.1 Create `public/` directory and move static assets
-    - Create `public/` directory at project root
-    - Copy `src/48.rom` to `public/48.rom`
-    - Copy `src/audio-worklet.js` to `public/audio-worklet.js`
-    - Copy `src/hello.tap` to `public/hello.tap` (if tracked in git)
-    - **Started**: TBD
-    - **Completed**: TBD
-    - **Duration**: TBD
-  - [ ] 1.2 Install Vite and Three.js via npm
-    - Run `npm install --save-dev vite` and `npm install three`
-    - **Started**: TBD
-    - **Completed**: TBD
-    - **Duration**: TBD
-  - [ ] 1.3 Create `vite.config.js` at project root
-    - Set `root: 'src'`, `publicDir: '../public'`, `build.outDir: '../dist'`, `server.port: 8080`
-    - See design.md section 4.4 for exact config
-    - **Started**: TBD
-    - **Completed**: TBD
-    - **Duration**: TBD
-  - [ ] 1.4 Update `package.json` scripts
-    - Change `build` to `npm run build:wasm && npm run build:web`
-    - Add `build:wasm` script (copies to `public/spectrum.wasm` instead of `src/`)
-    - Add `build:web` → `vite build`
-    - Change `dev` → `npm run build:wasm && vite`
-    - Change `serve` → `vite preview --port 8080`
-    - Keep `asm` script (will update path in Phase 7)
-    - **Started**: TBD
-    - **Completed**: TBD
-    - **Duration**: TBD
-  - [ ] 1.5 Add `dist/` to `.gitignore`
-    - Add `dist/` line to `.gitignore`
-    - **Started**: TBD
-    - **Completed**: TBD
-    - **Duration**: TBD
-  - [ ] 1.6 Verify infrastructure works
-    - Run `npm run build:wasm` — confirm `public/spectrum.wasm` is created
-    - Run `npx vite --port 8080` from project root — confirm dev server starts and old app loads (still using script tags, which Vite serves as-is)
-    - **Started**: TBD
-    - **Completed**: TBD
-    - **Duration**: TBD
-  - [ ] 1.7 Create phase completion summary
+  - [x] 1.1 Create `public/` directory and move static assets
+    - **Started**: 2026-03-21 20:41:00 UTC+0
+    - **Completed**: 2026-03-21 20:42:00 UTC+0
+    - **Duration**: 1m
+  - [x] 1.2 Install Vite and Three.js via npm
+    - Installed vite@6.4.1 (Node 20 compatible) and three@0.183.2
+    - **Started**: 2026-03-21 20:42:00 UTC+0
+    - **Completed**: 2026-03-21 20:43:00 UTC+0
+    - **Duration**: 1m
+  - [x] 1.3 Create `vite.config.js` at project root
+    - **Started**: 2026-03-21 20:43:00 UTC+0
+    - **Completed**: 2026-03-21 20:43:00 UTC+0
+    - **Duration**: <1m
+  - [x] 1.4 Update `package.json` scripts
+    - **Started**: 2026-03-21 20:43:00 UTC+0
+    - **Completed**: 2026-03-21 20:43:00 UTC+0
+    - **Duration**: <1m
+  - [x] 1.5 Add `dist/` to `.gitignore`
+    - **Started**: 2026-03-21 20:43:00 UTC+0
+    - **Completed**: 2026-03-21 20:43:00 UTC+0
+    - **Duration**: <1m
+  - [x] 1.6 Verify infrastructure works
+    - WASM builds and copies to public/spectrum.wasm successfully
+    - Vite dev server starts on port 8080 in 333ms
+    - **Started**: 2026-03-21 20:43:00 UTC+0
+    - **Completed**: 2026-03-21 20:44:00 UTC+0
+    - **Duration**: 1m
+  - [x] 1.7 Create phase completion summary
     - Create `docs/tasks/TASK-1.0-INFRASTRUCTURE-SETUP-COMPLETION-SUMMARY.md`
     - Include: what was set up, verification results, key files created
     - **Started**: TBD

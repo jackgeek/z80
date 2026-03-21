@@ -1,10 +1,18 @@
 // ZX Spectrum Cube — Three.js rotating cube with live screen texture
 
-(function() {
-  const cubeCanvas    = document.getElementById('cube-canvas');
-  const flatContainer = document.getElementById('screen-container');
+import * as THREE from 'three';
+import { getWasm } from '../emulator/state.js';
+
+const BORDER_COLORS = [
+  '#000000', '#0000CD', '#CD0000', '#CD00CD',
+  '#00CD00', '#00CDCD', '#CDCD00', '#CDCDCD'
+];
+
+export function initCube() {
+  const cubeCanvas     = document.getElementById('cube-canvas');
+  const flatContainer  = document.getElementById('screen-container');
   const spectrumCanvas = document.getElementById('screen');
-  const toggle        = document.getElementById('cube-toggle');
+  const toggle         = document.getElementById('cube-toggle');
 
   let cubeMode = false;
 
@@ -42,13 +50,9 @@
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.NearestFilter;
 
-  const BORDER_COLORS = [
-    '#000000', '#0000CD', '#CD0000', '#CD00CD',
-    '#00CD00', '#00CDCD', '#CDCD00', '#CDCDCD'
-  ];
-
   function updateTexture() {
-    const border = (typeof wasm !== 'undefined' && wasm && wasm.getBorderColor)
+    const wasm = getWasm();
+    const border = (wasm && wasm.getBorderColor)
       ? BORDER_COLORS[wasm.getBorderColor()]
       : '#cdcdcd';
 
@@ -104,5 +108,4 @@
     cubeCanvas.width  = s;
     cubeCanvas.height = s;
   });
-
-})();
+}

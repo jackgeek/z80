@@ -7,12 +7,10 @@
 //
 // Zoom makes each byte N×N CSS pixels — fewer bytes fit per row
 // so more rows flow downward.  Canvas width stays at 256 bytes.
-//
-// Requires: main.js to call  debugView.init(memory, wasm, opts)
-//           after WASM is loaded.
 // ============================================================
 
-const DBG_MEM_BASE = 0x100000;
+import { MEM_BASE } from '../emulator/state.js';
+
 const DBG_MEM_SIZE = 65536;
 const DBG_W = 256;
 const DBG_H = 256;
@@ -42,62 +40,6 @@ function dbgEnsureGfx() {
   _dbgImageData = _dbgCtx.createImageData(DBG_W, DBG_H);
   _dbgImgBuf = new Uint8Array(_dbgImageData.data.buffer);
   _dbgGfxReady = true;
-}
-
-// ── Initialisation ──────────────────────────────────────────
-function dbgInit(memory, wasm, opts) {
-  _dbgMemory = memory;
-  _dbgWasm = wasm;
-  _dbgIsPaused = opts.isPaused;
-  _dbgRenderFrame = opts.renderFrame;
-
-  _dbgCanvas = document.getElementById('debug-canvas');
-  _dbgElAddr = document.getElementById('debug-addr');
-  _dbgElValue = document.getElementById('debug-value');
-  _dbgElRegion = document.getElementById('debug-region');
-  _dbgElEdit = document.getElementById('debug-edit');
-
-  // ── Zoom slider ──
-  const zoomSlider = document.getElementById('debug-zoom');
-  const zoomLabel = document.getElementById('debug-zoom-label');
-  const inner = document.getElementById('debug-canvas-inner');
-  const wrap = document.getElementById('debug-canvas-wrap');
-  zoomSlider.addEventListener('input', () => {
-    const z = parseInt(zoomSlider.value, 10);
-    zoomLabel.textContent = z + '\u00d7';
-    _dbgCanvas.style.transform = 'scale(' + z + ')';
-    inner.style.width = (DBG_W * z) + 'px';
-    inner.style.height = (DBG_H * z) + 'px';
-    wrap.classList.toggle('zoomed', z > 1);
-  });
-
-  // ── Click-to-inspect ──
-  _dbgCanvas.addEventListener('click', dbgOnCanvasClick);
-  _dbgElEdit.addEventListener('keydown', dbgOnEditKeydown);
-
-  _dbgInitialized = true;
-}
-
-// ── Render ──────────────────────────────────────────────────
-function dbgRender(memoryBuffer) {
-  if (!_dbgInitialized) return;
-  dbgEnsureGfx();
-
-  if (!_dbgMemView || _dbgMemView.buffer !== memoryBuffer) {
-    _dbgMemView = new Uint8Array(memoryBuffer, DBG_MEM_BASE, DBG_MEM_SIZE);
-  }
-
-  const src = _dbgMemView;
-  const dst = _dbgImgBuf;
-  for (let i = 0; i < DBG_MEM_SIZE; i++) {
-    const v = src[i];
-    const o = i << 2;
-    dst[o] = v;
-    dst[o + 1] = v;
-    dst[o + 2] = v;
-    dst[o + 3] = 255;
-  }
-  _dbgCtx.putImageData(_dbgImageData, 0, 0);
 }
 
 // ── Click-to-inspect ────────────────────────────────────────
@@ -146,11 +88,64 @@ function dbgOnEditKeydown(e) {
   _dbgWasm.writeRAM(_dbgSelectedAddr, newVal);
   _dbgElValue.textContent = '$' + newVal.toString(16).toUpperCase().padStart(2, '0') + ' (' + newVal + ')';
 
-  if (_dbgMemory) dbgRender(_dbgMemory.buffer);
+  if (_dbgMemory) renderDebugView(_dbgMemory.buffer);
   if (_dbgSelectedAddr >= 0x4000 && _dbgSelectedAddr <= 0x5AFF && _dbgRenderFrame) {
     _dbgRenderFrame();
   }
 }
 
-// ── Public API ──────────────────────────────────────────────
-window.debugView = { init: dbgInit, render: dbgRender };
+// ── Initialisation ──────────────────────────────────────────
+export function initDebugView(memory, wasm, opts) {
+  _dbgMemory = memory;
+  _dbgWasm = wasm;
+  _dbgIsPaused = opts.isPaused;
+  _dbgRenderFrame = opts.renderFrame;
+
+  _dbgCanvas = document.getElementById('debug-canvas');
+  _dbgElAddr = document.getElementById('debug-addr');
+  _dbgElValue = document.getElementById('debug-value');
+  _dbgElRegion = document.getElementById('debug-region');
+  _dbgElEdit = document.getElementById('debug-edit');
+
+  // ── Zoom slider ──
+  const zoomSlider = document.getElementById('debug-zoom');
+  const zoomLabel = document.getElementById('debug-zoom-label');
+  const inner = document.getElementById('debug-canvas-inner');
+  const wrap = document.getElementById('debug-canvas-wrap');
+  zoomSlider.addEventListener('input', () => {
+    const z = parseInt(zoomSlider.value, 10);
+    zoomLabel.textContent = z + '\u00d7';
+    _dbgCanvas.style.transform = 'scale(' + z + ')';
+    inner.style.width = (DBG_W * z) + 'px';
+    inner.style.height = (DBG_H * z) + 'px';
+    wrap.classList.toggle('zoomed', z > 1);
+  });
+
+  // ── Click-to-inspect ──
+  _dbgCanvas.addEventListener('click', dbgOnCanvasClick);
+  _dbgElEdit.addEventListener('keydown', dbgOnEditKeydown);
+
+  _dbgInitialized = true;
+}
+
+// ── Render ──────────────────────────────────────────────────
+export function renderDebugView(memoryBuffer) {
+  if (!_dbgInitialized) return;
+  dbgEnsureGfx();
+
+  if (!_dbgMemView || _dbgMemView.buffer !== memoryBuffer) {
+    _dbgMemView = new Uint8Array(memoryBuffer, MEM_BASE, DBG_MEM_SIZE);
+  }
+
+  const src = _dbgMemView;
+  const dst = _dbgImgBuf;
+  for (let i = 0; i < DBG_MEM_SIZE; i++) {
+    const v = src[i];
+    const o = i << 2;
+    dst[o] = v;
+    dst[o + 1] = v;
+    dst[o + 2] = v;
+    dst[o + 3] = 255;
+  }
+  _dbgCtx.putImageData(_dbgImageData, 0, 0);
+}

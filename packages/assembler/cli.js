@@ -3,8 +3,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { assemble } = require('./z80asm/assembler');
-const { generateTAP } = require('./z80asm/tap');
+const { assemble } = require('./assembler');
+const { generateTAP } = require('./tap');
 
 // --- Parse command-line arguments ---
 const args = process.argv.slice(2);

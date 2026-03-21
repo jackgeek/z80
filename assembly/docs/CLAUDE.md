@@ -1,6 +1,6 @@
 # Assembly — Z80 Core
 
-This directory contains the complete Z80 CPU and ZX Spectrum 48K hardware emulation in a single AssemblyScript file (`index.ts`, ~1780 lines). It compiles to WASM and is the performance-critical core of the emulator.
+This directory contains the complete Z80 CPU and ZX Spectrum 48K hardware emulation in a single AssemblyScript file (`index.ts`, ~1780 lines). It compiles to `build/spectrum.wasm`, which is then copied to `public/spectrum.wasm` for serving. This is the performance-critical core of the emulator.
 
 ## Entry Points (Exported to JS)
 
