@@ -2,21 +2,21 @@
 
 ## Prerequisites
 
-- Node.js 20+
-- npm
+- [Bun](https://bun.sh/) (package manager and script runner)
+- Node.js 20+ (required by AssemblyScript compiler)
 
 ## Install
 
 ```bash
-npm ci
+bun install
 ```
 
-This installs AssemblyScript and Vite (dev dependencies), plus Three.js (runtime dependency).
+This installs AssemblyScript, Vite, TypeScript, and `@types/three` (dev dependencies), plus Three.js (runtime dependency).
 
 ## Build
 
 ```bash
-npm run build
+bun run build
 ```
 
 This runs two steps:
@@ -31,24 +31,24 @@ Key WASM compiler flags:
 ## Run (Development)
 
 ```bash
-npm run dev
+bun run dev
 ```
 
-Builds the WASM, then starts the **Vite dev server** on `localhost:8080` with hot module replacement (HMR). Frontend JS changes are reflected instantly without a manual reload.
+Builds the WASM, then starts the **Vite dev server** on `localhost:8080` with hot module replacement (HMR). Frontend TypeScript changes are reflected instantly without a manual reload.
 
 ## Run (Production Preview)
 
 ```bash
-npm run serve
+bun run serve
 ```
 
-Runs `vite preview` on port 8080, serving the production build from `dist/`. You must run `npm run build` first.
+Runs `vite preview` on port 8080, serving the production build from `dist/`. You must run `bun run build` first.
 
 ## Dev Workflow
 
-1. Edit `assembly/index.ts` (WASM core) or files in `src/` (frontend)
-2. Run `npm run build:wasm` if you changed the AssemblyScript (or use `npm run dev` which builds WASM on startup)
-3. Frontend JS changes are picked up automatically by Vite's dev server (HMR)
+1. Edit `assembly/index.ts` (WASM core) or TypeScript files in `src/` (frontend)
+2. Run `bun run build:wasm` if you changed the AssemblyScript (or use `bun run dev` which builds WASM on startup)
+3. Frontend TypeScript changes are picked up automatically by Vite's dev server (HMR)
 
 Source modules live in `src/` (organized into subdirectories: `emulator/`, `input/`, `audio/`, `video/`, `media/`, `debug/`, `ui/`). Static assets (ROM, audio worklet) live in `public/`. The production build output goes to `dist/` (gitignored).
 
@@ -58,4 +58,6 @@ Drag and drop `.tap`, `.tzx`, or `.zip` files onto the emulator, or use the file
 
 ## Deployment
 
-Pushes to `main` auto-deploy to GitHub Pages via `.github/workflows/deploy.yml`. The workflow runs `npm run build` and publishes the `dist/` directory.
+Pushes to `main` auto-deploy to GitHub Pages via `.github/workflows/deploy.yml`. The workflow runs `bun run build` and publishes the `dist/` directory.
+
+*Updated: 2026-03-21 - npm → bun, TypeScript migration noted*

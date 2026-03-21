@@ -4,7 +4,7 @@ The `src/` directory contains the emulator's browser-side code, organized as ES 
 
 ## Modules
 
-### main.js (~30 lines)
+### main.ts (~30 lines)
 Entry point that imports and wires all modules together. Calls each subsystem's init function in sequence:
 1. `initScreen()` — WebGL/Canvas2D setup
 2. `attachKeyboardHandlers()` — physical keyboard
@@ -14,14 +14,17 @@ Entry point that imports and wires all modules together. Calls each subsystem's 
 6. `initUI()` — buttons, drag-drop, file inputs
 7. `initWasm()` — WASM loading, ROM fetch, frame loop start
 
-### emulator/state.js
-Shared emulator state module (replaces all globals). Exports mutable state that other modules import:
+### emulator/state.ts
+Shared emulator state module (replaces all globals). Uses TypeScript getter/setter functions (e.g., `getWasm()`, `setWasm()`, `isRunning()`, `setRunning()`) instead of directly exported mutable variables. Imports from the `WasmExports` interface defined in `wasm-types.ts`. Manages:
 - WASM instance reference and memory buffer views
 - Keyboard state array
 - Emulator flags (paused, turbo, etc.)
 - Canvas and rendering context references
 
-### emulator/wasm-loader.js
+### emulator/wasm-types.ts
+TypeScript interface definitions for all WASM exports. Defines the `WasmExports` interface covering core emulation, memory access, keyboard state, audio buffer, tape loading, and snapshot save/restore functions.
+
+### emulator/wasm-loader.ts
 WASM instantiation and ROM loading:
 - Fetches and compiles `spectrum.wasm` from `public/`
 - Creates `WebAssembly.Memory` (256 pages / 16 MB)
@@ -29,7 +32,7 @@ WASM instantiation and ROM loading:
 - Stores WASM exports in shared state
 - Kicks off the frame loop after initialization
 
-### emulator/frame-loop.js
+### emulator/frame-loop.ts
 The main emulation loop:
 - `requestAnimationFrame` throttled to ~50 FPS
 - Pushes keyboard state to WASM each frame
@@ -37,13 +40,13 @@ The main emulation loop:
 - Triggers screen rendering and audio output
 - Supports turbo mode for maximum emulation speed
 
-### input/keyboard.js
+### input/keyboard.ts
 Physical keyboard mapping and event handlers:
 - Maps PC keys to the Spectrum 8x5 keyboard matrix
 - Arrow keys mapped to Caps Shift + 5/6/7/8
 - Shift = Caps Shift, Ctrl = Symbol Shift
 
-### input/vkeyboard.js
+### input/vkeyboard.ts
 Faithful ZX Spectrum keyboard replica:
 - Dynamically generates DOM from key data arrays (4 rows matching the real layout)
 - Each key stores its matrix position (row + bit) and labels (main, symbol shift, BASIC keyword, extended mode)
@@ -51,7 +54,7 @@ Faithful ZX Spectrum keyboard replica:
 - Touch-friendly: 44px keys on mobile, 56px on desktop
 - Rainbow stripe decoration on the right edge
 
-### input/joystick.js
+### input/joystick.ts
 Fullscreen mode and touch joystick overlay:
 - Enters/exits fullscreen via Fullscreen API
 - Shows a virtual D-pad (left 50% of screen) and fire button (right 50%) in fullscreen
@@ -59,20 +62,20 @@ Fullscreen mode and touch joystick overlay:
 - Uses `ResizeObserver` for reliable fullscreen canvas resizing (avoids iOS viewport bugs)
 - 8-directional D-pad with 0.3 deadzone threshold
 
-### audio/audio.js
+### audio/audio.ts
 Audio pipeline setup:
 - Creates AudioContext on first user interaction (browser autoplay policy)
 - Sets up AudioWorklet with processor from `public/audio-worklet.js`
 - Reads WASM audio buffer (882 i16 samples/frame at 44.1 kHz)
 - High-pass filter for DC offset removal
 
-### video/screen.js
+### video/screen.ts
 Main display rendering:
 - Copies WASM screen buffer to canvas via `ImageData`
 - CSS-scaled to fill available space
 - No WebGL for the main display
 
-### video/cube.js
+### video/cube.ts
 Three.js 3D cube visualization:
 - Creates a 512x512 texture canvas showing the Spectrum screen with border color
 - Applies the texture to all 6 faces of a rotating cube
@@ -80,20 +83,20 @@ Three.js 3D cube visualization:
 - Toggle on/off via checkbox in the UI
 - Three.js loaded via npm (not CDN)
 
-### media/tape.js
+### media/tape.ts
 File format parsing and tape loading:
 - TAP: 2-byte length + data blocks, written to WASM tape buffer
 - TZX: extracts standard data blocks (types 0x10, 0x11, 0x14), converts to TAP
 - ZIP: decompressed via `DecompressionStream`, first .tap/.tzx extracted
 
-### media/snapshot.js
+### media/snapshot.ts
 .z80 snapshot save/restore:
 - Saves as v3 format (30-byte header + 56-byte extended header + 3 compressed pages)
 - Loads v1, v2, and v3 formats (auto-detected by header fields)
 - ED ED RLE compression for page data
 - Restores via WASM setter functions + `writeRAM()`
 
-### debug/debug-view.js
+### debug/debug-view.ts
 Live memory debug view:
 - Renders the full 64 KB Z80 address space (0x0000-0xFFFF) as a 256x256 grayscale heatmap
 - WebGL LUMINANCE texture upload (~64 KB/frame) with Canvas 2D fallback
@@ -102,7 +105,7 @@ Live memory debug view:
 - Inline hex editor for RAM bytes (Enter to commit)
 - Toggle on/off via "Debug" checkbox; hidden by default
 
-### ui/ui.js
+### ui/ui.ts
 UI controller:
 - Button handlers (reset, pause, save state, turbo)
 - Drag-and-drop file loading
@@ -112,13 +115,13 @@ UI controller:
 
 ## Key Integration Points
 
-- **Shared state**: `emulator/state.js` exports mutable state that all modules import — no globals on `window`
-- **WASM memory**: `emulator/wasm-loader.js` creates the `WebAssembly.Memory` (256 pages / 16 MB) and stores it in shared state
-- **Keyboard state**: `input/keyboard.js` maintains `keyState[8]` in shared state; `emulator/frame-loop.js` pushes it to WASM each frame
-- **Joystick -> keyboard**: `input/joystick.js` writes to the same `keyState` array or calls `wasm.setKempston()` directly
-- **Virtual keyboard -> keyboard**: `input/vkeyboard.js` calls back into shared state key handlers
-- **Cube -> screen**: `video/cube.js` reads the main `<canvas>` element to create its texture
-- **Debug -> WASM memory**: `debug/debug-view.js` reads WASM linear memory at `MEM_BASE` (0x100000) directly; uses `wasm.readMem()` / `wasm.writeRAM()` for inspect/edit
+- **Shared state**: `emulator/state.ts` provides getter/setter functions for all shared state — no globals on `window`
+- **WASM memory**: `emulator/wasm-loader.ts` creates the `WebAssembly.Memory` (256 pages / 16 MB) and stores it in shared state
+- **Keyboard state**: `input/keyboard.ts` maintains `keyState[8]` in shared state; `emulator/frame-loop.ts` pushes it to WASM each frame
+- **Joystick -> keyboard**: `input/joystick.ts` writes to the same `keyState` array or calls `wasm.setKempston()` directly
+- **Virtual keyboard -> keyboard**: `input/vkeyboard.ts` calls back into shared state key handlers
+- **Cube -> screen**: `video/cube.ts` reads the main `<canvas>` element to create its texture
+- **Debug -> WASM memory**: `debug/debug-view.ts` reads WASM linear memory at `MEM_BASE` (0x100000) directly; uses `wasm.readMem()` / `wasm.writeRAM()` for inspect/edit
 
 ## File Formats
 
@@ -129,3 +132,5 @@ UI controller:
 | `.zip` | Extension + PK header | Decompressed via `DecompressionStream`, first .tap/.tzx extracted |
 | `.rom` | Exactly 16,384 bytes | Written directly to ROM area in WASM memory |
 | `.z80` | Extension | Snapshot: restores full CPU state + 48 KB RAM (supports v1, v2, v3) |
+
+*Updated: 2026-03-21 - TypeScript migration: .js → .ts, state module now uses getter/setter pattern with WasmExports interface*

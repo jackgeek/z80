@@ -2,20 +2,20 @@
 
 ## Overview
 
-The emulator is a two-layer system: a WASM core (AssemblyScript) handling all Z80/ULA emulation, and a JS frontend handling I/O, UI, and browser APIs. They communicate through shared WASM linear memory.
+The emulator is a two-layer system: a WASM core (AssemblyScript) handling all Z80/ULA emulation, and a TS frontend handling I/O, UI, and browser APIs. They communicate through shared WASM linear memory.
 
 ```
 ┌──────────────────────────────────────────────────────┐
 │                     Browser                           │
 │                                                      │
 │  ┌───────────────────────────────────────────────┐   │
-│  │  JS Frontend (src/, ES modules, bundled by Vite) │
+│  │  TS Frontend (src/, ES modules, bundled by Vite) │
 │  │                                               │   │
-│  │  main.js (entry point — imports all modules)  │   │
+│  │  main.ts (entry point — imports all modules)  │   │
 │  │  emulator/  state, wasm-loader, frame-loop    │   │
 │  │  input/     keyboard, vkeyboard, joystick     │   │
 │  │  audio/     audio                             │   │
-│  │  video/     screen, cube (Three.js via npm)   │   │
+│  │  video/     screen, cube (Three.js via bun)   │   │
 │  │  media/     tape, snapshot                    │   │
 │  │  debug/     debug-view                        │   │
 │  │  ui/        ui                                │   │
@@ -35,25 +35,25 @@ The emulator is a two-layer system: a WASM core (AssemblyScript) handling all Z8
 
 ## Module Architecture
 
-The JS frontend uses ES modules (`import`/`export`) bundled by Vite. There are no script-tag globals — shared state lives in `emulator/state.js` with getter/setter exports that all other modules import.
+The TS frontend uses ES modules (`import`/`export`) bundled by Vite. There are no script-tag globals — shared state lives in `emulator/state.ts` with getter/setter exports that all other modules import.
 
-`main.js` is a slim ~30-line entry point that imports and calls init functions from each module group:
+`main.ts` is a slim ~30-line entry point that imports and calls init functions from each module group:
 
 ```
-main.js
-  ├── emulator/state.js        Shared state (wasm instance, flags, constants)
-  ├── emulator/wasm-loader.js  Fetches + instantiates spectrum.wasm, loads ROM
-  ├── emulator/frame-loop.js   requestAnimationFrame loop (50 Hz PAL)
-  ├── input/keyboard.js        Physical keyboard → keyState matrix
-  ├── input/vkeyboard.js       Virtual ZX Spectrum keyboard overlay
-  ├── input/joystick.js        Fullscreen + touch joystick
-  ├── audio/audio.js           Web Audio pipeline (AudioWorklet)
-  ├── video/screen.js          Canvas rendering (ImageData blit)
-  ├── video/cube.js            Three.js 3D cube visualization
-  ├── media/tape.js            TAP / TZX / ZIP file parsing + loading
-  ├── media/snapshot.js        .z80 snapshot save / restore
-  ├── debug/debug-view.js      Memory / register debug panel
-  └── ui/ui.js                 Buttons, drag-and-drop, file inputs, game library
+main.ts
+  ├── emulator/state.ts        Shared state (wasm instance, flags, constants)
+  ├── emulator/wasm-loader.ts  Fetches + instantiates spectrum.wasm, loads ROM
+  ├── emulator/frame-loop.ts   requestAnimationFrame loop (50 Hz PAL)
+  ├── input/keyboard.ts        Physical keyboard → keyState matrix
+  ├── input/vkeyboard.ts       Virtual ZX Spectrum keyboard overlay
+  ├── input/joystick.ts        Fullscreen + touch joystick
+  ├── audio/audio.ts           Web Audio pipeline (AudioWorklet)
+  ├── video/screen.ts          Canvas rendering (ImageData blit)
+  ├── video/cube.ts            Three.js 3D cube visualization
+  ├── media/tape.ts            TAP / TZX / ZIP file parsing + loading
+  ├── media/snapshot.ts        .z80 snapshot save / restore
+  ├── debug/debug-view.ts      Memory / register debug panel
+  └── ui/ui.ts                 Buttons, drag-and-drop, file inputs, game library
 ```
 
 ## WASM Linear Memory Layout
@@ -150,18 +150,20 @@ Output TAP contains a BASIC loader (`CLEAR / LOAD "" CODE / RANDOMIZE USR`) plus
 Vite is the bundler. Source lives in `src/`, static assets in `public/`, and `dist/` is the build output.
 
 ```bash
-npm run build:wasm   # AssemblyScript → public/spectrum.wasm
-npm run build:web    # Vite bundles src/ → dist/
-npm run build        # Both steps
-npm run dev          # build:wasm + Vite dev server (HMR)
-npm run asm          # Z80 assembler CLI (packages/assembler/)
+bun run build:wasm   # AssemblyScript → public/spectrum.wasm
+bun run build:web    # Vite bundles src/ → dist/
+bun run build        # Both steps
+bun run dev          # build:wasm + Vite dev server (HMR)
+bun run asm          # Z80 assembler CLI (packages/assembler/)
 ```
 
 Key build notes:
 - `spectrum.wasm` is built into `public/` so Vite copies it to `dist/` as a static asset
-- Three.js is an npm dependency — Vite tree-shakes it into the bundle
+- Three.js is a bun dependency — Vite tree-shakes it into the bundle
 - `audio-worklet.js` is in `public/` (AudioWorklet constraint: must be a standalone file)
 
 ## Deployment
 
 GitHub Actions builds WASM and runs `vite build`, then deploys the `dist/` directory to GitHub Pages. The site is 100% static files — no server-side logic.
+
+*Updated: 2026-03-21 - TypeScript migration: .js → .ts references, npm → bun*

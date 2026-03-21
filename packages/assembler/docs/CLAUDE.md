@@ -11,7 +11,7 @@ node packages/assembler/cli.js input.asm --no-autorun        # Don't auto-execut
 node packages/assembler/cli.js input.asm --org 0x6000        # Override default ORG
 ```
 
-Or via npm: `npm run asm -- input.asm -o output.tap`
+Or via bun: `bun run asm -- input.asm -o output.tap`
 
 ## Modules
 
@@ -57,3 +57,5 @@ source.asm
 ## Design document
 
 See [/docs/features/z80-assembler/design.md](/docs/features/z80-assembler/design.md) for full requirements.
+
+*Updated: 2026-03-21 - npm → bun*

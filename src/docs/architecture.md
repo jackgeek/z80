@@ -2,34 +2,34 @@
 
 ## Module Structure
 
-All browser code uses ES modules (`import`/`export`). The entry point `src/main.js` imports and initializes each subsystem. Shared mutable state lives in `emulator/state.js` (no globals on `window`).
+All browser code is written in TypeScript using ES modules (`import`/`export`). The entry point `src/main.ts` imports and initializes each subsystem. Shared mutable state lives in `emulator/state.ts` (no globals on `window`).
 
 ```
-main.js
-  ├── emulator/wasm-loader.js  ← WASM instantiation, ROM load, starts frame loop
-  │     └── emulator/state.js  ← shared state (wasm instance, keyState, flags)
-  ├── emulator/frame-loop.js   ← requestAnimationFrame loop, turbo mode
-  │     └── emulator/state.js
-  ├── video/screen.js          ← canvas rendering (WASM screen buffer → ImageData)
-  │     └── emulator/state.js
-  ├── input/keyboard.js        ← physical keyboard → Spectrum matrix
-  │     └── emulator/state.js
-  ├── input/vkeyboard.js       ← virtual keyboard UI
-  │     └── emulator/state.js
-  ├── input/joystick.js        ← fullscreen + touch joystick
-  │     └── emulator/state.js
-  ├── video/cube.js            ← Three.js 3D cube (imports three from npm)
-  │     └── emulator/state.js
-  ├── audio/audio.js           ← AudioWorklet setup, WASM audio buffer read
-  │     └── emulator/state.js
-  ├── media/tape.js            ← TAP/TZX/ZIP parsing
-  │     └── emulator/state.js
-  ├── media/snapshot.js        ← .z80 save/restore
-  │     └── emulator/state.js
-  ├── debug/debug-view.js      ← memory heatmap visualization
-  │     └── emulator/state.js
-  └── ui/ui.js                 ← button handlers, drag-drop, file picker
-        └── emulator/state.js
+main.ts
+  ├── emulator/wasm-loader.ts  ← WASM instantiation, ROM load, starts frame loop
+  │     └── emulator/state.ts  ← shared state (wasm instance, keyState, flags)
+  ├── emulator/frame-loop.ts   ← requestAnimationFrame loop, turbo mode
+  │     └── emulator/state.ts
+  ├── video/screen.ts          ← canvas rendering (WASM screen buffer → ImageData)
+  │     └── emulator/state.ts
+  ├── input/keyboard.ts        ← physical keyboard → Spectrum matrix
+  │     └── emulator/state.ts
+  ├── input/vkeyboard.ts       ← virtual keyboard UI
+  │     └── emulator/state.ts
+  ├── input/joystick.ts        ← fullscreen + touch joystick
+  │     └── emulator/state.ts
+  ├── video/cube.ts            ← Three.js 3D cube (imports three from npm)
+  │     └── emulator/state.ts
+  ├── audio/audio.ts           ← AudioWorklet setup, WASM audio buffer read
+  │     └── emulator/state.ts
+  ├── media/tape.ts            ← TAP/TZX/ZIP parsing
+  │     └── emulator/state.ts
+  ├── media/snapshot.ts        ← .z80 save/restore
+  │     └── emulator/state.ts
+  ├── debug/debug-view.ts      ← memory heatmap visualization
+  │     └── emulator/state.ts
+  └── ui/ui.ts                 ← button handlers, drag-drop, file picker
+        └── emulator/state.ts
 ```
 
 ## WASM Integration
@@ -39,13 +39,13 @@ const memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
 const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { memory, abort: () => {} } });
 ```
 
-JS and WASM share the same memory buffer. JS reads/writes at known offsets:
+TypeScript and WASM share the same memory buffer. The TS side reads/writes at known offsets:
 
 | Offset | JS reads/writes | Purpose |
 |--------|----------------|---------|
-| `0x100000` | Write (ROM load) | Z80 address space — JS loads ROM here at startup |
+| `0x100000` | Write (ROM load) | Z80 address space — TS loads ROM here at startup |
 | `0x110000` | Read | Screen buffer — WASM renders 256x192 RGBA pixels |
-| `0x140000` | Write | TAP buffer — JS writes parsed tape data |
+| `0x140000` | Write | TAP buffer — TS writes parsed tape data |
 | `0x1C0000` | Read | Audio buffer — WASM writes 882 i16 beeper samples/frame |
 
 ## Audio Pipeline
@@ -54,7 +54,7 @@ JS and WASM share the same memory buffer. JS reads/writes at known offsets:
 WASM beeper samples (882 i16/frame at 44.1 kHz)
         │
         ▼
-  audio/audio.js reads from WASM memory as Int16Array
+  audio/audio.ts reads from WASM memory as Int16Array
         │
         ▼
   High-pass filter: y[n] = α·(y[n-1] + x[n] - x[n-1])
@@ -74,7 +74,7 @@ The audio worklet processor lives in `public/audio-worklet.js` because AudioWork
 
 ## Screen Rendering
 
-Each frame, `video/screen.js` copies the WASM screen buffer to a canvas:
+Each frame, `video/screen.ts` copies the WASM screen buffer to a canvas:
 
 ```javascript
 const src = new Uint8Array(memory.buffer, SCREEN_BASE, 256 * 192 * 4);
@@ -86,7 +86,7 @@ The canvas is CSS-scaled to fill the available space. No WebGL is used for the m
 
 ## Frame Loop
 
-`emulator/frame-loop.js` runs the main emulation loop:
+`emulator/frame-loop.ts` runs the main emulation loop:
 
 ```javascript
 function frameLoop(timestamp) {
@@ -105,7 +105,7 @@ function frameLoop(timestamp) {
 
 ## Keyboard Mapping
 
-The ZX Spectrum uses an 8-row x 5-column keyboard matrix. `input/keyboard.js` maps modern keyboard events to this matrix:
+The ZX Spectrum uses an 8-row x 5-column keyboard matrix. `input/keyboard.ts` maps modern keyboard events to this matrix:
 
 | Row | Bit 0 | Bit 1 | Bit 2 | Bit 3 | Bit 4 |
 |-----|-------|-------|-------|-------|-------|
@@ -122,7 +122,7 @@ Special mappings: Shift -> Caps Shift (row 0), Ctrl -> Symbol Shift (row 7), Arr
 
 ## File Loading
 
-File loading is handled by `media/tape.js` and `media/snapshot.js`.
+File loading is handled by `media/tape.ts` and `media/snapshot.ts`.
 
 ### TAP Format
 Simple sequential blocks: `[2-byte length][data...]` repeated. Written directly to the WASM tape buffer at offset 0x140000.
@@ -135,7 +135,7 @@ Uses the browser's `DecompressionStream` API for deflate. Parses the ZIP local f
 
 ### .z80 Snapshot Format
 
-The `.z80` format is the industry-standard ZX Spectrum snapshot format. Handled by `media/snapshot.js`. Saves/restores complete machine state (48 KB RAM + all CPU registers + interrupt state + border colour).
+The `.z80` format is the industry-standard ZX Spectrum snapshot format. Handled by `media/snapshot.ts`. Saves/restores complete machine state (48 KB RAM + all CPU registers + interrupt state + border colour).
 
 **Saving (v3 format):**
 - 30-byte header (registers: A, F, BC, DE, HL, SP, I, R, IX, IY, shadow registers, IFF1/2, IM, border)
@@ -152,7 +152,7 @@ The `.z80` format is the industry-standard ZX Spectrum snapshot format. Handled 
 
 ## Fullscreen & Joystick
 
-Fullscreen mode (`input/joystick.js`):
+Fullscreen mode (`input/joystick.ts`):
 - Uses `element.requestFullscreen()` / vendor prefixes
 - Hides the virtual keyboard, shows the touch joystick overlay
 - Canvas is letterboxed to maintain 4:3 aspect ratio
@@ -163,7 +163,7 @@ Touch joystick:
 - Right half: circular fire button
 - Maps to selected joystick type (Kempston port or Spectrum key rows)
 
-## 3D Cube (video/cube.js)
+## 3D Cube (video/cube.ts)
 
 Optional visualization using Three.js (loaded via npm):
 - Creates a 512x512 off-screen canvas as a texture source
@@ -171,7 +171,7 @@ Optional visualization using Three.js (loaded via npm):
 - Cube rotates continuously on all 3 axes
 - Toggle via checkbox; hidden by default on mobile
 
-## Memory Debug View (debug/debug-view.js)
+## Memory Debug View (debug/debug-view.ts)
 
 Real-time memory visualization displaying the Z80's full 64 KB address space as a 256x256 grayscale image.
 
@@ -191,3 +191,5 @@ Real-time memory visualization displaying the Z80's full 64 KB address space as 
 - Click a pixel -> fixed info panel shows address (hex), value (hex + decimal), ROM/RAM indicator
 - RAM bytes editable via hex input; writes via `wasm.writeRAM(addr, val)`
 - Zoom slider (1x-8x) applies CSS `transform: scale()` with scrollable container
+
+*Updated: 2026-03-21 - TypeScript migration: .js → .ts references*
