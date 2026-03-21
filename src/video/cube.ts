@@ -8,11 +8,11 @@ const BORDER_COLORS = [
   '#00CD00', '#00CDCD', '#CDCD00', '#CDCDCD'
 ];
 
-export function initCube() {
-  const cubeCanvas     = document.getElementById('cube-canvas');
-  const flatContainer  = document.getElementById('screen-container');
-  const spectrumCanvas = document.getElementById('screen');
-  const toggle         = document.getElementById('cube-toggle');
+export function initCube(): void {
+  const cubeCanvas     = document.getElementById('cube-canvas') as HTMLCanvasElement;
+  const flatContainer  = document.getElementById('screen-container')!;
+  const spectrumCanvas = document.getElementById('screen') as HTMLCanvasElement;
+  const toggle         = document.getElementById('cube-toggle') as HTMLInputElement;
 
   let cubeMode = false;
 
@@ -44,13 +44,13 @@ export function initCube() {
   const texCanvas = document.createElement('canvas');
   texCanvas.width  = 512;
   texCanvas.height = 512;
-  const texCtx = texCanvas.getContext('2d');
+  const texCtx = texCanvas.getContext('2d')!;
 
   const texture = new THREE.CanvasTexture(texCanvas);
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.NearestFilter;
 
-  function updateTexture() {
+  function updateTexture(): void {
     const wasm = getWasm();
     const border = (wasm && wasm.getBorderColor)
       ? BORDER_COLORS[wasm.getBorderColor()]
@@ -75,7 +75,7 @@ export function initCube() {
   scene.add(cube);
 
   // ── Render loop ───────────────────────────────────────────
-  function animate() {
+  function animate(): void {
     requestAnimationFrame(animate);
     if (!cubeMode) return;
 

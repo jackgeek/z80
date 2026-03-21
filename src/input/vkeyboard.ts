@@ -3,27 +3,33 @@
 import { getWasm } from '../emulator/state.js';
 import { initAudio } from '../audio/audio.js';
 
-export function specKeyDown(row, bit) {
+export function specKeyDown(row: number, bit: number): void {
   initAudio();
   const wasm = getWasm();
   if (wasm) wasm.keyDown(row, bit);
 }
 
-export function specKeyUp(row, bit) {
+export function specKeyUp(row: number, bit: number): void {
   const wasm = getWasm();
   if (wasm) wasm.keyUp(row, bit);
 }
 
 // ── Key data ────────────────────────────────────────────────────────────────
-// label  = main white letter on key
-// sym    = red symbol (top-right of key, Symbol Shift)
-// sub    = green BASIC keyword (top-left of key, Caps Shift)
-// ext    = blue extended-mode function (above key on bezel)
-// color  = spectrum colour label above key (row 1 only), shown in that colour
-// wide   = flex-grow multiplier
-// sticky = latching modifier key
+interface VKeyDef {
+  label: string;
+  sym?: string;
+  sub?: string;
+  ext?: string;
+  color?: string;
+  colorHex?: string;
+  row: number;
+  bit: number;
+  wide?: number;
+  sticky?: boolean;
+  id?: string;
+}
 
-const ROWS = [
+const ROWS: VKeyDef[][] = [
   [
     { label:'1', sym:'!',  sub:'EDIT',      ext:'DEF FN', color:'BLUE',    colorHex:'#1818f0', row:3, bit:0x01 },
     { label:'2', sym:'@',  sub:'CAPS LOCK', ext:'FN',     color:'RED',     colorHex:'#d80000', row:3, bit:0x02 },
@@ -74,7 +80,7 @@ const ROWS = [
   ],
 ];
 
-export function initVirtualKeyboard() {
+export function initVirtualKeyboard(): void {
   let capsLatch = false, symLatch = false;
 
   // ── Build DOM ───────────────────────────────────────────────────────────────
@@ -88,15 +94,15 @@ export function initVirtualKeyboard() {
   kb.appendChild(header);
 
   // Key rows
-  ROWS.forEach((rowKeys, rowIdx) => {
+  ROWS.forEach((_rowKeys, _rowIdx) => {
     const rowDiv = document.createElement('div');
     rowDiv.className = 'vkb-row';
 
-    rowKeys.forEach(key => {
+    _rowKeys.forEach(key => {
       // Wrapper: holds above-bezel labels + the key itself
       const wrap = document.createElement('div');
       wrap.className = 'vkb-wrap';
-      if (key.wide) wrap.style.flexGrow = key.wide;
+      if (key.wide) wrap.style.flexGrow = String(key.wide);
 
       // Above-key bezel area
       const above = document.createElement('div');
@@ -106,7 +112,7 @@ export function initVirtualKeyboard() {
         const colorEl = document.createElement('div');
         colorEl.className = 'vkb-color-name';
         colorEl.textContent = key.color;
-        colorEl.style.color = key.colorHex;
+        colorEl.style.color = key.colorHex!;
         above.appendChild(colorEl);
       }
       if (key.ext) {
@@ -145,7 +151,7 @@ export function initVirtualKeyboard() {
       el.appendChild(mainEl);
 
       // ── Events ──────────────────────────────────────────────────────────
-      function press(e) {
+      function press(e: Event): void {
         e.preventDefault();
         if (key.sticky) {
           if (key.label.startsWith('CAPS')) {
@@ -164,19 +170,19 @@ export function initVirtualKeyboard() {
         specKeyDown(key.row, key.bit);
       }
 
-      function release(e) {
+      function release(e: Event): void {
         e.preventDefault();
         if (key.sticky) return;
         el.classList.remove('vkb-pressed');
         specKeyUp(key.row, key.bit);
         if (capsLatch) {
           capsLatch = false;
-          document.getElementById('key-caps').classList.remove('vkb-latched');
+          document.getElementById('key-caps')!.classList.remove('vkb-latched');
           specKeyUp(0, 0x01);
         }
         if (symLatch) {
           symLatch = false;
-          document.getElementById('key-sym').classList.remove('vkb-latched');
+          document.getElementById('key-sym')!.classList.remove('vkb-latched');
           kb.classList.remove('vkb-sym-active');
           specKeyUp(7, 0x02);
         }

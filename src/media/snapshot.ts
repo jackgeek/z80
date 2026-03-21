@@ -1,8 +1,8 @@
 import { getWasm, getMemory, MEM_BASE, getCachedRomData, setRunning, setRomLoaded, setPaused, isRomLoaded } from '../emulator/state.js';
 
 // ED ED RLE compression for .z80 format
-export function compressZ80Page(data) {
-  const out = [];
+export function compressZ80Page(data: Uint8Array): Uint8Array {
+  const out: number[] = [];
   let i = 0;
   while (i < data.length) {
     const b = data[i];
@@ -11,7 +11,6 @@ export function compressZ80Page(data) {
       count++;
     }
     if (b === 0xED) {
-      // ED bytes always use RLE to avoid confusion with the ED ED escape
       out.push(0xED, 0xED, count, 0xED);
     } else if (count >= 2) {
       out.push(0xED, 0xED, count, b);
@@ -24,12 +23,11 @@ export function compressZ80Page(data) {
 }
 
 // ED ED RLE decompression for .z80 format
-export function decompressZ80(data, expectedLength) {
+export function decompressZ80(data: Uint8Array, expectedLength: number): Uint8Array {
   const out = new Uint8Array(expectedLength);
   let inPos = 0, outPos = 0;
   while (inPos < data.length && outPos < expectedLength) {
     if (data[inPos] === 0xED && inPos + 1 < data.length && data[inPos + 1] === 0xED) {
-      // ED ED count byte — RLE run
       const count = data[inPos + 2];
       const value = data[inPos + 3];
       for (let j = 0; j < count && outPos < expectedLength; j++) {
@@ -44,10 +42,10 @@ export function decompressZ80(data, expectedLength) {
 }
 
 // Save emulator state as .z80 v3 file
-export function saveZ80() {
+export function saveZ80(): void {
   const wasm = getWasm();
   const memory = getMemory();
-  if (!wasm || !isRomLoaded()) return;
+  if (!wasm || !memory || !isRomLoaded()) return;
 
   // Read registers
   const a = wasm.getA();
@@ -110,7 +108,7 @@ export function saveZ80() {
     { id: 5, data: ram.slice(0x8000, 0xC000) },     // 0xC000-0xFFFF
   ];
 
-  const pageBlocks = [];
+  const pageBlocks: Uint8Array[] = [];
   for (const page of pages) {
     const compressed = compressZ80Page(page.data);
     const block = new Uint8Array(3 + compressed.length);
@@ -143,11 +141,11 @@ export function saveZ80() {
   document.body.removeChild(a_el);
   URL.revokeObjectURL(url);
 
-  document.getElementById('status').textContent = 'Snapshot saved.';
+  document.getElementById('status')!.textContent = 'Snapshot saved.';
 }
 
 // Load .z80 snapshot file (v1, v2, v3)
-export function loadZ80(arrayBuffer) {
+export function loadZ80(arrayBuffer: ArrayBuffer): void {
   const wasm = getWasm();
   const cachedRomData = getCachedRomData();
   if (!wasm || !cachedRomData) return;
@@ -181,8 +179,8 @@ export function loadZ80(arrayBuffer) {
   const iff2 = data[28];
   const im = data[29] & 3;
 
-  let pc;
-  let ram; // 48 KB Uint8Array for addresses 0x4000-0xFFFF
+  let pc: number;
+  let ram: Uint8Array;
 
   if (headerPC !== 0) {
     // ── Version 1 ──
@@ -197,21 +195,18 @@ export function loadZ80(arrayBuffer) {
     // ── Version 2 or 3 ──
     const extLen = data[30] | (data[31] << 8);
     pc = data[32] | (data[33] << 8);
-    // const hwMode = data[34]; // 0 = 48K
 
     const dataStart = 32 + extLen;
-    ram = new Uint8Array(49152); // pre-fill with zeros
+    ram = new Uint8Array(49152);
 
-    // Read pages until end of file
     let pos = dataStart;
     while (pos + 3 <= data.length) {
       const pageLen = data[pos] | (data[pos + 1] << 8);
       const pageId = data[pos + 2];
       pos += 3;
 
-      let pageData;
+      let pageData: Uint8Array;
       if (pageLen === 0xFFFF) {
-        // Uncompressed page
         pageData = data.slice(pos, pos + 16384);
         pos += 16384;
       } else {
@@ -219,12 +214,11 @@ export function loadZ80(arrayBuffer) {
         pos += pageLen;
       }
 
-      // Map page ID to RAM offset (relative to 0x4000)
-      let ramOffset;
-      if (pageId === 8) ramOffset = 0x0000;      // 0x4000-0x7FFF
-      else if (pageId === 4) ramOffset = 0x4000;  // 0x8000-0xBFFF
-      else if (pageId === 5) ramOffset = 0x8000;  // 0xC000-0xFFFF
-      else continue; // Skip unknown pages
+      let ramOffset: number;
+      if (pageId === 8) ramOffset = 0x0000;
+      else if (pageId === 4) ramOffset = 0x4000;
+      else if (pageId === 5) ramOffset = 0x8000;
+      else continue;
 
       ram.set(pageData.slice(0, 16384), ramOffset);
     }
@@ -266,6 +260,6 @@ export function loadZ80(arrayBuffer) {
   setRunning(true);
   setRomLoaded(true);
   setPaused(false);
-  document.getElementById('pause-btn').textContent = 'Pause';
-  document.getElementById('status').textContent = 'Snapshot loaded.';
+  document.getElementById('pause-btn')!.textContent = 'Pause';
+  document.getElementById('status')!.textContent = 'Snapshot loaded.';
 }

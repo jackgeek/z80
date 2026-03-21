@@ -1,16 +1,16 @@
 # ZX Spectrum 48K Emulator
 
-Browser-based ZX Spectrum 48K emulator using WebAssembly (AssemblyScript) for the CPU core and vanilla JavaScript for the frontend.
+Browser-based ZX Spectrum 48K emulator using WebAssembly (AssemblyScript) for the CPU core and TypeScript for the frontend.
 
 **Live demo:** https://jackgeek.github.io/z80/
 
 ## Quick Reference
 
 ```bash
-npm run build    # Compile AssemblyScript → WASM + Vite production build → dist/
-npm run dev      # Start Vite dev server with HMR
-npm run serve    # Preview production build (vite preview)
-npm run asm -- input.asm -o output.tap   # Assemble Z80 source → TAP file
+bun run build    # Compile AssemblyScript → WASM + Vite production build → dist/
+bun run dev      # Start Vite dev server with HMR
+bun run serve    # Preview production build (vite preview)
+bun run asm -- input.asm -o output.tap   # Assemble Z80 source → TAP file
 ```
 
 ## Project Structure
@@ -19,27 +19,28 @@ npm run asm -- input.asm -o output.tap   # Assemble Z80 source → TAP file
 assembly/index.ts    # Z80 CPU + ULA emulation (AssemblyScript, compiles to WASM)
 src/
   index.html         # Main UI (dark theme, responsive layout)
-  main.js            # Entry point — imports and wires all modules
+  main.ts            # Entry point — imports and wires all modules
   emulator/
-    state.js         # Shared emulator state (replaces all globals)
-    wasm-loader.js   # WASM fetch, instantiate, ROM loading
-    frame-loop.js    # requestAnimationFrame loop, turbo mode
+    state.ts         # Shared emulator state (replaces all globals)
+    wasm-types.ts    # TypeScript type definitions for WASM exports
+    wasm-loader.ts   # WASM fetch, instantiate, ROM loading
+    frame-loop.ts    # requestAnimationFrame loop, turbo mode
   input/
-    keyboard.js      # Physical keyboard mapping + handlers
-    vkeyboard.js     # Virtual keyboard (ZX Spectrum replica)
-    joystick.js      # Fullscreen mode + touch joystick overlay
+    keyboard.ts      # Physical keyboard mapping + handlers
+    vkeyboard.ts     # Virtual keyboard (ZX Spectrum replica)
+    joystick.ts      # Fullscreen mode + touch joystick overlay
   audio/
-    audio.js         # AudioWorklet processor setup + fallback
+    audio.ts         # AudioWorklet processor setup + fallback
   video/
-    screen.js        # WebGL/Canvas2D screen rendering
-    cube.js          # Three.js 3D cube visualization
+    screen.ts        # WebGL/Canvas2D screen rendering
+    cube.ts          # Three.js 3D cube visualization
   media/
-    tape.js          # TAP/TZX/ZIP file format parsing + loading
-    snapshot.js      # .z80 format save/restore
+    tape.ts          # TAP/TZX/ZIP file format parsing + loading
+    snapshot.ts      # .z80 format save/restore
   debug/
-    debug-view.js    # Memory debug visualization
+    debug-view.ts    # Memory debug visualization
   ui/
-    ui.js            # Button handlers, drag-drop, file inputs
+    ui.ts            # Button handlers, drag-drop, file inputs
 public/
   48.rom             # ZX Spectrum 48K ROM binary (16 KB)
   audio-worklet.js   # AudioWorklet processor (must be non-module)
@@ -49,7 +50,8 @@ packages/
     cli.js           # Z80 assembler CLI entry point
     assembler.js     # Two-pass assembler
     parser.js, encoder.js, opcodes.js, expressions.js, tap.js
-vite.config.js       # Vite bundler configuration
+vite.config.ts       # Vite bundler configuration
+tsconfig.json        # TypeScript configuration
 ```
 
 ## Architecture Overview
@@ -57,17 +59,18 @@ vite.config.js       # Vite bundler configuration
 The emulator has two layers separated by the WASM boundary:
 
 1. **WASM core** (`assembly/index.ts`) — Z80 CPU, ULA screen rendering, beeper sampling, memory, I/O ports
-2. **JS frontend** (`src/`) — ES modules wired together in `main.js`, organized by domain (emulator, input, audio, video, media, ui)
+2. **TS frontend** (`src/`) — TypeScript ES modules wired together in `main.ts`, organized by domain (emulator, input, audio, video, media, ui)
 
-They share a 16 MB WASM linear memory buffer. JS writes ROM/tape data and keyboard state into known offsets; WASM writes screen pixels and audio samples back.
+They share a 16 MB WASM linear memory buffer. TS writes ROM/tape data and keyboard state into known offsets; WASM writes screen pixels and audio samples back.
 
-All browser code uses ES modules with `import`/`export` (no globals). Vite provides the dev server (with HMR) and production bundling. `src/` contains source modules, `public/` holds static assets served as-is, and `dist/` is the build output (gitignored). Three.js is loaded via npm, not CDN.
+All browser code uses ES modules with `import`/`export` (no globals). Vite provides the dev server (with HMR) and production bundling. `src/` contains source modules, `public/` holds static assets served as-is, and `dist/` is the build output (gitignored). Three.js is loaded via bun, not CDN.
 
 See [docs/architecture.md](docs/architecture.md) for full system design.
 
 ## Key Conventions
 
-- **No frameworks** — vanilla JS, no UI framework
+- **No frameworks** — vanilla TypeScript, no UI framework
+- **TypeScript** — all browser code is strictly typed
 - **ES modules** — all browser code uses `import`/`export`
 - **Vite** — dev server with HMR, production build to `dist/`
 - **Static hosting** — `dist/` is the deployable site (GitHub Pages)

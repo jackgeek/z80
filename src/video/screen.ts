@@ -6,19 +6,19 @@ export const BORDER_COLORS = [
 ];
 
 const SCREEN_BYTES = SCREEN_WIDTH * SCREEN_HEIGHT * 4;
-let screenSrc = null;
+let screenSrc: Uint8Array | null = null;
 let lastBorderColor = -1;
 let useWebGL = false;
-let gl = null;
-let glTexture = null;
-let ctx2d = null;
-let imageData = null;
-let imgDest = null;
-let canvas = null;
-let screenContainer = null;
+let gl: WebGLRenderingContext | null = null;
+let glTexture: WebGLTexture | null = null;
+let ctx2d: CanvasRenderingContext2D | null = null;
+let imageData: ImageData | null = null;
+let imgDest: Uint8Array | null = null;
+let canvas: HTMLCanvasElement | null = null;
+let screenContainer: HTMLElement | null = null;
 
-export function initScreen() {
-  canvas = document.getElementById('screen');
+export function initScreen(): void {
+  canvas = document.getElementById('screen') as HTMLCanvasElement;
   screenContainer = document.getElementById('screen-container');
 
   gl = canvas.getContext('webgl', { antialias: false, depth: false, stencil: false, alpha: false });
@@ -29,15 +29,15 @@ export function initScreen() {
     const vsSource = 'attribute vec2 p; varying vec2 uv; void main() { uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5); gl_Position = vec4(p, 0.0, 1.0); }';
     const fsSource = 'precision mediump float; varying vec2 uv; uniform sampler2D tex; void main() { gl_FragColor = texture2D(tex, uv); }';
 
-    const vs = gl.createShader(gl.VERTEX_SHADER);
+    const vs = gl.createShader(gl.VERTEX_SHADER)!;
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
 
-    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
 
-    const prog = gl.createProgram();
+    const prog = gl.createProgram()!;
     gl.attachShader(prog, vs);
     gl.attachShader(prog, fs);
     gl.linkProgram(prog);
@@ -62,13 +62,13 @@ export function initScreen() {
     gl.viewport(0, 0, canvas.width, canvas.height);
   } else {
     useWebGL = false;
-    ctx2d = canvas.getContext('2d');
+    ctx2d = canvas.getContext('2d')!;
     imageData = ctx2d.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
     imgDest = new Uint8Array(imageData.data.buffer);
   }
 }
 
-export function renderFrame() {
+export function renderFrame(): void {
   const wasm = getWasm();
   const memory = getMemory();
   if (!wasm || !memory) return;
@@ -78,16 +78,16 @@ export function renderFrame() {
   }
 
   if (useWebGL) {
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, gl.RGBA, gl.UNSIGNED_BYTE, screenSrc);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl!.texSubImage2D(gl!.TEXTURE_2D, 0, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, gl!.RGBA, gl!.UNSIGNED_BYTE, screenSrc);
+    gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
   } else {
-    imgDest.set(screenSrc);
-    ctx2d.putImageData(imageData, 0, 0);
+    imgDest!.set(screenSrc);
+    ctx2d!.putImageData(imageData!, 0, 0);
   }
 
   const borderColor = wasm.getBorderColor();
   if (borderColor !== lastBorderColor) {
     lastBorderColor = borderColor;
-    screenContainer.style.background = BORDER_COLORS[borderColor & 7];
+    screenContainer!.style.background = BORDER_COLORS[borderColor & 7];
   }
 }

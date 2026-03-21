@@ -5,11 +5,16 @@
 
 import { getWasm, isRunning } from '../emulator/state.js';
 
+interface KeyMapping {
+  row: number;
+  bit: number;
+}
+
 /**
  * ZX Spectrum keyboard matrix mapping.
  * Each key maps to a half-row (0-7) and a bit within that row.
  */
-export const KEY_MAP = {
+export const KEY_MAP: Record<string, KeyMapping> = {
   'ShiftLeft':   { row: 0, bit: 0x01 },
   'ShiftRight':  { row: 0, bit: 0x01 },
   'KeyZ':        { row: 0, bit: 0x02 },
@@ -58,7 +63,7 @@ export const KEY_MAP = {
  * Compound keys that map a single physical key to multiple Spectrum keys.
  * For example, Backspace = Caps Shift + 0 (DELETE).
  */
-export const COMPOUND_KEYS = {
+export const COMPOUND_KEYS: Record<string, KeyMapping[]> = {
   'Backspace':  [{ row: 0, bit: 0x01 }, { row: 4, bit: 0x01 }],
   'ArrowLeft':  [{ row: 0, bit: 0x01 }, { row: 3, bit: 0x10 }],
   'ArrowDown':  [{ row: 0, bit: 0x01 }, { row: 4, bit: 0x10 }],
@@ -70,18 +75,18 @@ export const COMPOUND_KEYS = {
  * Attach keydown and keyup event listeners to the document for
  * ZX Spectrum keyboard input.
  */
-export function attachKeyboardHandlers() {
+export function attachKeyboardHandlers(): void {
   document.addEventListener('keydown', (e) => {
     if (!getWasm() || !isRunning()) return;
 
-    const tag = e.target.tagName;
+    const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     const compound = COMPOUND_KEYS[e.code];
     if (compound) {
       e.preventDefault();
       for (const k of compound) {
-        getWasm().keyDown(k.row, k.bit);
+        getWasm()!.keyDown(k.row, k.bit);
       }
       return;
     }
@@ -89,21 +94,21 @@ export function attachKeyboardHandlers() {
     const mapping = KEY_MAP[e.code];
     if (mapping) {
       e.preventDefault();
-      getWasm().keyDown(mapping.row, mapping.bit);
+      getWasm()!.keyDown(mapping.row, mapping.bit);
     }
   });
 
   document.addEventListener('keyup', (e) => {
     if (!getWasm() || !isRunning()) return;
 
-    const tag = e.target.tagName;
+    const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     const compound = COMPOUND_KEYS[e.code];
     if (compound) {
       e.preventDefault();
       for (const k of compound) {
-        getWasm().keyUp(k.row, k.bit);
+        getWasm()!.keyUp(k.row, k.bit);
       }
       return;
     }
@@ -111,7 +116,7 @@ export function attachKeyboardHandlers() {
     const mapping = KEY_MAP[e.code];
     if (mapping) {
       e.preventDefault();
-      getWasm().keyUp(mapping.row, mapping.bit);
+      getWasm()!.keyUp(mapping.row, mapping.bit);
     }
   });
 }

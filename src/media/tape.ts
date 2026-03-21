@@ -8,14 +8,14 @@ import { initAudio } from '../audio/audio.js';
 // TZX → TAP CONVERTER
 // Extracts standard data blocks from TZX and wraps them as TAP.
 // ============================================================
-export function tzxToTap(data) {
+export function tzxToTap(data: ArrayBuffer): ArrayBuffer {
   const b = new Uint8Array(data);
 
   // Validate header: "ZXTape!" + 0x1A
   const sig = String.fromCharCode(b[0],b[1],b[2],b[3],b[4],b[5],b[6]);
   if (sig !== 'ZXTape!') throw new Error('Not a valid TZX file');
 
-  const blocks = [];
+  const blocks: Uint8Array[] = [];
   let pos = 10; // skip 10-byte TZX header
 
   while (pos < b.length) {
@@ -90,23 +90,22 @@ export function tzxToTap(data) {
 
 // ============================================================
 // TZX → PULSE STREAM CONVERTER
-// Converts TZX blocks into an array of pulse durations (T-states)
-// for accurate tape signal emulation via port 0xFE bit 6.
-// Also tracks which pulse index each data block ends at so the
-// ROM trap can stay in sync with pulse playback.
 // ============================================================
-export function tzxToPulses(data) {
+export interface PulseResult {
+  pulses: number[];
+  dataBlockEndPulses: number[];
+}
+
+export function tzxToPulses(data: ArrayBuffer): PulseResult {
   const b = new Uint8Array(data);
   const sig = String.fromCharCode(b[0],b[1],b[2],b[3],b[4],b[5],b[6]);
   if (sig !== 'ZXTape!') throw new Error('Not a valid TZX file');
 
-  const pulses = [];
-  // Pulse index where each data block's pulses END (for ROM trap sync)
-  const dataBlockEndPulses = [];
+  const pulses: number[] = [];
+  const dataBlockEndPulses: number[] = [];
   let pos = 10;
 
-  // Helper: add pulses for each bit of a data byte (MSB first per spec)
-  function addDataBits(byte, zeroPulse, onePulse, numBits) {
+  function addDataBits(byte: number, zeroPulse: number, onePulse: number, numBits: number): void {
     for (let bit = 7; bit >= 8 - numBits; bit--) {
       const p = (byte >> bit) & 1 ? onePulse : zeroPulse;
       pulses.push(p);
@@ -114,8 +113,7 @@ export function tzxToPulses(data) {
     }
   }
 
-  // Helper: add pulses for a complete data block (bytes)
-  function addDataBlock(offset, length, zeroPulse, onePulse, usedBitsLastByte) {
+  function addDataBlock(offset: number, length: number, zeroPulse: number, onePulse: number, usedBitsLastByte: number): void {
     for (let i = 0; i < length - 1; i++) {
       addDataBits(b[offset + i], zeroPulse, onePulse, 8);
     }
@@ -124,20 +122,13 @@ export function tzxToPulses(data) {
     }
   }
 
-  // Helper: add a LOW-level pause per TZX spec.
-  // Spec: "At the end of a Pause block the current pulse level is low"
-  // and "the first pulse will therefore not immediately produce an edge."
-  // We ensure the level is LOW before the pause, and LOW after it.
-  function addPause(ms) {
+  function addPause(ms: number): void {
     if (ms <= 0) return;
-    // Transition to LOW if currently HIGH (odd pulse count = HIGH)
     if (pulses.length & 1) {
-      pulses.push(1); // 1 T-state transition HIGH->LOW
+      pulses.push(1);
     }
-    // LOW-level silence for the pause duration
-    pulses.push(ms * 3500); // after this, level toggles to HIGH
-    // Restore level to LOW (spec requires LOW after pause)
-    pulses.push(1); // 1 T-state transition HIGH->LOW
+    pulses.push(ms * 3500);
+    pulses.push(1);
   }
 
   while (pos < b.length) {
@@ -148,17 +139,12 @@ export function tzxToPulses(data) {
         const pause = b[pos] | (b[pos+1] << 8); pos += 2;
         const len = b[pos] | (b[pos+1] << 8); pos += 2;
         const flagByte = b[pos];
-        // Pilot tone
         const pilotCount = flagByte < 0x80 ? 8063 : 3223;
         for (let i = 0; i < pilotCount; i++) pulses.push(2168);
-        // Sync pulses
         pulses.push(667);
         pulses.push(735);
-        // Data bits (standard timings: zero=855, one=1710)
         addDataBlock(pos, len, 855, 1710, 8);
         pos += len;
-        // Track end position BEFORE pause so ROM trap sync preserves
-        // the silence gap that custom loaders need to detect pilot onset
         dataBlockEndPulses.push(pulses.length);
         addPause(pause);
         break;
@@ -200,7 +186,7 @@ export function tzxToPulses(data) {
         break;
       }
 
-      case 0x14: { // Pure data block — generate pulses but don't track as ROM-loadable
+      case 0x14: { // Pure data block
         const zeroPulse = b[pos] | (b[pos+1] << 8); pos += 2;
         const onePulse = b[pos] | (b[pos+1] << 8); pos += 2;
         const usedBits = b[pos++] || 8;
@@ -208,8 +194,6 @@ export function tzxToPulses(data) {
         const dataLen = b[pos] | (b[pos+1] << 8) | (b[pos+2] << 16); pos += 3;
         addDataBlock(pos, dataLen, zeroPulse, onePulse, usedBits);
         pos += dataLen;
-        // Don't push to dataBlockEndPulses — 0x14 blocks have no pilot/sync/flag
-        // and are only loadable via pulse-level playback (custom loaders like Speedlock)
         addPause(pause);
         break;
       }
@@ -279,13 +263,17 @@ export function tzxToPulses(data) {
 // ============================================================
 // ZIP EXTRACTOR  (store + deflate-raw via DecompressionStream)
 // ============================================================
-export async function extractZip(data) {
+interface ZipEntry {
+  name: string;
+  data: ArrayBuffer;
+}
+
+export async function extractZip(data: ArrayBuffer): Promise<ZipEntry[]> {
   const b = new Uint8Array(data);
-  const files = [];
+  const files: ZipEntry[] = [];
   let pos = 0;
 
   while (pos < b.length - 4) {
-    // Local file header signature: PK\x03\x04
     if (b[pos] !== 0x50 || b[pos+1] !== 0x4B || b[pos+2] !== 0x03 || b[pos+3] !== 0x04) break;
 
     const flags       = b[pos+6]  | (b[pos+7]  << 8);
@@ -297,7 +285,6 @@ export async function extractZip(data) {
 
     const dataStart = pos + 30 + nameLen + extraLen;
 
-    // If data descriptor flag is set and sizes are zero, scan for next PK header
     if ((flags & 0x08) && compSize === 0) {
       let scan = dataStart;
       while (scan < b.length - 4) {
@@ -308,7 +295,7 @@ export async function extractZip(data) {
     }
 
     const compressed = b.slice(dataStart, dataStart + compSize);
-    let fileData;
+    let fileData: ArrayBuffer;
 
     if (compression === 0) {
       fileData = compressed.buffer.slice(compressed.byteOffset, compressed.byteOffset + compressed.byteLength);
@@ -317,7 +304,7 @@ export async function extractZip(data) {
       const writer = ds.writable.getWriter();
       writer.write(compressed);
       writer.close();
-      const chunks = [];
+      const chunks: Uint8Array[] = [];
       const reader = ds.readable.getReader();
       while (true) {
         const { done, value } = await reader.read();
@@ -338,7 +325,6 @@ export async function extractZip(data) {
     files.push({ name: name.toLowerCase(), data: fileData });
     pos = dataStart + compSize;
 
-    // Skip optional data descriptor (PK\x07\x08)
     if (b[pos]===0x50&&b[pos+1]===0x4B&&b[pos+2]===0x07&&b[pos+3]===0x08) pos += 16;
   }
 
@@ -349,17 +335,14 @@ export async function extractZip(data) {
 // TAPE LOADING (TAP / TZX / ZIP)
 // ============================================================
 
-// Write pulse stream to WASM memory and set up block boundaries
-export function loadPulseData(pulseResult) {
-  const wasm = getWasm();
-  const memory = getMemory();
+export function loadPulseData(pulseResult: PulseResult): void {
+  const wasm = getWasm()!;
+  const memory = getMemory()!;
   const { pulses, dataBlockEndPulses } = pulseResult;
-  // Write pulse durations directly to WASM memory (much faster than byte-by-byte)
   const pulseBase = wasm.getPulseBaseAddr();
   const dest = new Uint32Array(memory.buffer, pulseBase, pulses.length);
   for (let i = 0; i < pulses.length; i++) dest[i] = pulses[i];
 
-  // Write block boundary pulse indices
   for (let i = 0; i < dataBlockEndPulses.length && i < 256; i++) {
     wasm.setBlockBound(i, dataBlockEndPulses[i]);
   }
@@ -368,61 +351,56 @@ export function loadPulseData(pulseResult) {
   console.log(`Pulse tape: ${pulses.length} pulses, ${dataBlockEndPulses.length} ROM-loadable blocks`);
 }
 
-// Main tape loader — auto-detects TAP/TZX/ZIP format
-export async function loadTapeFile(data, filename) {
+export async function loadTapeFile(data: ArrayBuffer, filename: string): Promise<void> {
   const wasm = getWasm();
   if (!wasm) return;
   initAudio();
   if (!isRomLoaded()) {
-    document.getElementById('status').textContent = 'Please load a ROM first!';
+    document.getElementById('status')!.textContent = 'Please load a ROM first!';
     return;
   }
 
-  const memory = getMemory();
   const name = (filename || '').toLowerCase();
-  let tapData;
+  let tapData: ArrayBuffer;
   let isTzx = false;
-  let tzxSource = null; // raw TZX ArrayBuffer for pulse generation
+  let tzxSource: ArrayBuffer | null = null;
 
-  // Auto-detect format from file content when extension is missing/unknown
   const header = new Uint8Array(data, 0, Math.min(8, data.byteLength));
   const isZipContent = header[0]===0x50 && header[1]===0x4B && header[2]===0x03 && header[3]===0x04;
-  const isTzxContent = String.fromCharCode(...header.slice(0, 7)) === 'ZXTape!';
+  const isTzxContent = String.fromCharCode(...Array.from(header.slice(0, 7))) === 'ZXTape!';
 
   try {
     if (name.endsWith('.zip') || (!name.endsWith('.tap') && !name.endsWith('.tzx') && isZipContent)) {
       const files = await extractZip(data);
       const entry = files.find(f => f.name.endsWith('.tap') || f.name.endsWith('.tzx'));
       if (!entry) {
-        document.getElementById('status').textContent = 'No .tap or .tzx file found inside ZIP.';
+        document.getElementById('status')!.textContent = 'No .tap or .tzx file found inside ZIP.';
         return;
       }
       isTzx = entry.name.endsWith('.tzx');
       if (isTzx) tzxSource = entry.data;
       tapData = isTzx ? tzxToTap(entry.data) : entry.data;
-      document.getElementById('status').textContent = `Loaded ${entry.name} from ZIP.`;
+      document.getElementById('status')!.textContent = `Loaded ${entry.name} from ZIP.`;
     } else if (name.endsWith('.tzx') || isTzxContent) {
       isTzx = true;
       tzxSource = data;
       tapData = tzxToTap(data);
-      document.getElementById('status').textContent = 'TZX loaded. Type LOAD "" and press Enter.';
+      document.getElementById('status')!.textContent = 'TZX loaded. Type LOAD "" and press Enter.';
     } else {
       tapData = data; // plain TAP
-      document.getElementById('status').textContent = 'TAP loaded. Type LOAD "" and press Enter.';
+      document.getElementById('status')!.textContent = 'TAP loaded. Type LOAD "" and press Enter.';
     }
   } catch (e) {
-    document.getElementById('status').textContent = 'Error loading tape: ' + e.message;
+    document.getElementById('status')!.textContent = 'Error loading tape: ' + (e as Error).message;
     console.error(e);
     return;
   }
 
-  // Load TAP data for ROM trap (instant loading of standard blocks)
   const bytes = new Uint8Array(tapData);
   for (let i = 0; i < bytes.length; i++) wasm.loadTapData(i, bytes[i]);
   wasm.setTapSize(bytes.length);
   console.log(`TAP data: ${bytes.length} bytes`);
 
-  // For TZX files, also generate pulse stream for custom loader support
   if (isTzx && tzxSource) {
     try {
       const pulseResult = tzxToPulses(tzxSource);
