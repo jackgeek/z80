@@ -29,7 +29,7 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
     fov: 45,
     nearClip: 0.1,
     farClip: 100,
-    clearColor: new pc.Color(0.05, 0.04, 0.03),
+    clearColor: new pc.Color(0.08, 0.06, 0.05),
   });
   camera.setLocalPosition(0, 0, 7);
   cameraRig.addChild(camera);
@@ -38,32 +38,35 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   // ── Lighting ──────────────────────────────────────────────────────────────
   const lighting = new pc.Entity('Lighting');
 
+  // Key light — warm directional from top-front-right
   const keyLight = new pc.Entity('KeyLight');
   keyLight.addComponent('light', {
     type: 'directional',
     color: new pc.Color(1.0, 0.95, 0.85),
-    intensity: 0.7,
+    intensity: 1.2,
     castShadows: false,
   });
-  keyLight.setLocalEulerAngles(45, 30, 0);
+  keyLight.setLocalEulerAngles(35, 20, 0);
   lighting.addChild(keyLight);
 
+  // Fill light — cool from left to soften shadows
   const fillLight = new pc.Entity('FillLight');
   fillLight.addComponent('light', {
     type: 'directional',
-    color: new pc.Color(0.6, 0.7, 1.0),
-    intensity: 0.2,
+    color: new pc.Color(0.7, 0.75, 1.0),
+    intensity: 0.5,
     castShadows: false,
   });
-  fillLight.setLocalEulerAngles(-30, -45, 0);
+  fillLight.setLocalEulerAngles(-20, -40, 0);
   lighting.addChild(fillLight);
 
+  // Rim light — amber accent from behind/above
   const rimLight = new pc.Entity('RimLight');
   rimLight.addComponent('light', {
     type: 'point',
     color: new pc.Color(1.0, 0.85, 0.5),
-    intensity: 0.4,
-    range: 20,
+    intensity: 0.8,
+    range: 25,
     castShadows: false,
   });
   rimLight.setLocalPosition(0, 4, -3);
@@ -77,8 +80,10 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   app.root.addChild(monitorResult.monitorEntity);
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
+  // Tilt keyboard toward camera so key faces are visible and clickable
   const kbResult: Keyboard3DResult = createKeyboard3D(app);
-  kbResult.keyboardEntity.setLocalPosition(0, -1.5, 0);
+  kbResult.keyboardEntity.setLocalPosition(0, -1.6, 0.5);
+  kbResult.keyboardEntity.setLocalEulerAngles(-65, 0, 0);
   kbResult.keyboardEntity.setLocalScale(0.65, 0.65, 0.65);
   app.root.addChild(kbResult.keyboardEntity);
 

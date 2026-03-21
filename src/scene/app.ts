@@ -19,8 +19,8 @@ export function initPlayCanvasApp(): pc.Application {
   app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
   app.setCanvasResolution(pc.RESOLUTION_AUTO);
 
-  // Dark steampunk ambient
-  app.scene.ambientLight = new pc.Color(0.05, 0.04, 0.03);
+  // Warm steampunk ambient — bright enough to see details
+  app.scene.ambientLight = new pc.Color(0.25, 0.22, 0.18);
 
   app.start();
 
