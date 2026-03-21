@@ -67,10 +67,15 @@ async function main(): Promise<void> {
   initInputBridge(app, entities);
   setSceneActor(sceneActor);
 
-  // Track menu open/close state for input routing
+  // Track menu open/close state for input routing + debug logging
   sceneActor.subscribe((state) => {
     const isMenu = state.value === 'menuPortrait' || state.value === 'menuLandscape';
     setMenuOpen(isMenu);
+    console.log(`[SceneMachine] state: ${String(state.value)} | context:`, {
+      lastPortrait: state.context.lastPortraitScene,
+      orientation: state.context.orientation,
+      previousScene: state.context.previousScene,
+    });
   });
 
   // 9. Initialize file handling (drag-drop + hidden file input)
@@ -78,6 +83,7 @@ async function main(): Promise<void> {
 
   // 10. Detect initial orientation and send to state machine
   const orientation = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
+  console.log(`[SceneMachine] initial orientation: ${orientation}`);
   if (orientation === 'landscape') {
     sceneActor.send({ type: 'ORIENTATION_CHANGE', orientation: 'landscape' });
   }
@@ -87,6 +93,7 @@ async function main(): Promise<void> {
   window.addEventListener('resize', () => {
     const newOrientation = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
     if (newOrientation !== currentOrientation) {
+      console.log(`[SceneMachine] orientation change: ${currentOrientation} → ${newOrientation}`);
       currentOrientation = newOrientation;
       sceneActor.send({ type: 'ORIENTATION_CHANGE', orientation: newOrientation });
     }

@@ -55,6 +55,12 @@ export function setSceneActor(actor: any): void {
   sceneActor = actor;
 }
 
+function sendScene(event: Record<string, unknown>): void {
+  if (!sceneActor) return;
+  console.log(`[SceneMachine] → send:`, event);
+  sceneActor.send(event);
+}
+
 const gestureDetector = new GestureDetector();
 
 // Whether the menu is currently open (tracked via state machine subscription)
@@ -69,36 +75,36 @@ function handleCodexAction(action: string): void {
     case 'LOAD_TAPE':
     case 'LOAD_ROM':
       triggerFileInput();
-      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      sendScene({ type: 'MENU_CLOSE' });
       break;
     case 'SAVE_STATE':
       saveZ80();
-      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      sendScene({ type: 'MENU_CLOSE' });
       break;
     case 'RESET':
       resetEmulator();
-      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      sendScene({ type: 'MENU_CLOSE' });
       break;
     case 'TOGGLE_PAUSE':
       setPaused(!isPaused());
       showStatus(isPaused() ? 'Paused' : 'Resumed');
-      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      sendScene({ type: 'MENU_CLOSE' });
       break;
     case 'TOGGLE_TURBO':
       setTurboMode(!isTurboMode());
       showStatus(isTurboMode() ? 'Turbo ON' : 'Turbo OFF');
-      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      sendScene({ type: 'MENU_CLOSE' });
       break;
     case 'CYCLE_JOYSTICK': {
       const types: JoystickType[] = ['sinclair1', 'cursor', 'kempston'];
       const idx = (types.indexOf(joystickType) + 1) % types.length;
       joystickType = types[idx];
       showStatus(`Joystick: ${joystickType}`);
-      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      sendScene({ type: 'MENU_CLOSE' });
       break;
     }
     case 'MENU_CLOSE':
-      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      sendScene({ type: 'MENU_CLOSE' });
       break;
   }
 }
@@ -132,7 +138,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       }
       if (e.code === 'Escape') {
         e.preventDefault();
-        if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+        sendScene({ type: 'MENU_CLOSE' });
         return;
       }
       return; // Don't process other keys while menu is open
@@ -211,7 +217,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
     // Menu button press
     if (hit.tags.has('menu-button')) {
-      if (sceneActor) sceneActor.send({ type: 'MENU_OPEN' });
+      sendScene({ type: 'MENU_OPEN' });
       return;
     }
 
@@ -311,7 +317,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     // Check for swipe gesture before handling pointer up
     const swipe = gestureDetector.endTracking(screenX, screenY);
     if (swipe && sceneActor) {
-      sceneActor.send({ type: 'SWIPE', direction: swipe.direction });
+      sendScene({ type: 'SWIPE', direction: swipe.direction });
     } else {
       handlePointerUp(screenX, screenY);
     }
