@@ -1,4 +1,4 @@
-// 3D brass joystick — base cylinder + stick + ball
+// 3D brass joystick — base cylinder + stick + ball, facing camera
 
 import * as pc from 'playcanvas';
 import { createBrassMaterial } from '../materials/brass.js';
@@ -18,13 +18,18 @@ export function createJoystick3D(app: pc.Application): Joystick3DResult {
   const joystick = new pc.Entity('Joystick3D');
   joystick.tags.add('joystick');
 
+  // Pivot rotates content so joystick top faces camera (Z-forward)
+  const pivot = new pc.Entity('JoyPivot');
+  pivot.setLocalEulerAngles(-90, 180, 0);
+  joystick.addChild(pivot);
+
   // Base cylinder
   const base = new pc.Entity('JoystickBase');
   base.addComponent('render', { type: 'cylinder' });
   base.setLocalScale(0.5, 0.12, 0.5);
   base.setLocalPosition(0, 0, 0);
   base.render!.meshInstances[0].material = brassMat;
-  joystick.addChild(base);
+  pivot.addChild(base);
 
   // Stick
   const stick = new pc.Entity('JoystickStick');
@@ -32,7 +37,7 @@ export function createJoystick3D(app: pc.Application): Joystick3DResult {
   stick.setLocalScale(0.06, 0.5, 0.06);
   stick.setLocalPosition(0, 0.31, 0);
   stick.render!.meshInstances[0].material = copperMat;
-  joystick.addChild(stick);
+  pivot.addChild(stick);
 
   // Ball at top
   const ball = new pc.Entity('JoystickBall');
@@ -40,9 +45,9 @@ export function createJoystick3D(app: pc.Application): Joystick3DResult {
   ball.setLocalScale(0.14, 0.14, 0.14);
   ball.setLocalPosition(0, 0.6, 0);
   ball.render!.meshInstances[0].material = brassMat;
-  joystick.addChild(ball);
+  pivot.addChild(ball);
 
-  // Add collision for the whole joystick area
+  // Collision for the whole joystick area
   joystick.addComponent('collision', {
     type: 'box',
     halfExtents: new pc.Vec3(0.25, 0.35, 0.25),

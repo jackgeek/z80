@@ -29,6 +29,12 @@ export function createKeyboard3D(app: pc.Application): Keyboard3DResult {
   const keyboard = new pc.Entity('Keyboard3D');
   keyboard.tags.add('swipeable');
 
+  // Pivot rotates content so key faces point toward camera (Z-forward)
+  // Keys are built on XZ plane with Y-up; rotate -90° on X to face Z
+  const pivot = new pc.Entity('KBPivot');
+  pivot.setLocalEulerAngles(-90, 180, 0);
+  keyboard.addChild(pivot);
+
   // ── Keyboard body ─────────────────────────────────────────────────────────
   const totalW = 10 * COL_GAP + 0.4;
   const totalD = 4 * ROW_GAP + 0.2;
@@ -44,7 +50,7 @@ export function createKeyboard3D(app: pc.Application): Keyboard3DResult {
   bodyMat.gloss = 0.15;
   bodyMat.update();
   body.render!.meshInstances[0].material = bodyMat;
-  keyboard.addChild(body);
+  pivot.addChild(body);
 
   // ── Brass edge trim ───────────────────────────────────────────────────────
   const trimH = 0.03;
@@ -60,7 +66,7 @@ export function createKeyboard3D(app: pc.Application): Keyboard3DResult {
     trim.setLocalScale(s[0], s[1], s[2]);
     trim.setLocalPosition(p[0], p[1], p[2]);
     trim.render!.meshInstances[0].material = brassMat;
-    keyboard.addChild(trim);
+    pivot.addChild(trim);
   }
 
   // ── Rainbow stripe on right edge ──────────────────────────────────────────
@@ -85,7 +91,7 @@ export function createKeyboard3D(app: pc.Application): Keyboard3DResult {
     stripeMat.gloss = 0.4;
     stripeMat.update();
     stripe.render!.meshInstances[0].material = stripeMat;
-    keyboard.addChild(stripe);
+    pivot.addChild(stripe);
   }
 
   // ── Key label texture atlas ───────────────────────────────────────────────
@@ -135,7 +141,7 @@ export function createKeyboard3D(app: pc.Application): Keyboard3DResult {
       }
 
       keys.set(keyDef.label, keyEntity);
-      keyboard.addChild(keyEntity);
+      pivot.addChild(keyEntity);
 
       x += colWidth;
     }

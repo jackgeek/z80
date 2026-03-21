@@ -87,29 +87,25 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   // ── Keyboard ──────────────────────────────────────────────────────────────
   // Tilt keyboard toward camera so key faces are visible and clickable
   const kbResult: Keyboard3DResult = createKeyboard3D(app);
-  kbResult.keyboardEntity.setLocalPosition(0, -1.6, 0.5);
-  kbResult.keyboardEntity.setLocalEulerAngles(65, 0, 0);
+  kbResult.keyboardEntity.setLocalPosition(0, -1.6, 0);
   kbResult.keyboardEntity.setLocalScale(0.65, 0.65, 0.65);
   app.root.addChild(kbResult.keyboardEntity);
 
   // ── Joystick ──────────────────────────────────────────────────────────────
   const joyResult: Joystick3DResult = createJoystick3D(app);
-  joyResult.joystickEntity.setLocalPosition(-2.0, -2.5, 0.4);
-  joyResult.joystickEntity.setLocalEulerAngles(70, 0, 0);
+  joyResult.joystickEntity.setLocalPosition(-2.0, -2.5, 0);
   joyResult.joystickEntity.setLocalScale(0.5, 0.5, 0.5);
   app.root.addChild(joyResult.joystickEntity);
 
   // ── Fire Button ───────────────────────────────────────────────────────────
   const fireResult: FireButtonResult = createFireButton(app);
-  fireResult.fireEntity.setLocalPosition(2.0, -2.5, 0.4);
-  fireResult.fireEntity.setLocalEulerAngles(70, 0, 0);
+  fireResult.fireEntity.setLocalPosition(2.0, -2.5, 0);
   fireResult.fireEntity.setLocalScale(0.5, 0.5, 0.5);
   app.root.addChild(fireResult.fireEntity);
 
   // ── Menu Button ───────────────────────────────────────────────────────────
   const menuResult: MenuButtonResult = createMenuButton(app);
-  menuResult.menuButtonEntity.setLocalPosition(0, -2.5, 0.4);
-  menuResult.menuButtonEntity.setLocalEulerAngles(70, 0, 0);
+  menuResult.menuButtonEntity.setLocalPosition(0, -2.5, 0);
   menuResult.menuButtonEntity.setLocalScale(0.5, 0.5, 0.5);
   app.root.addChild(menuResult.menuButtonEntity);
 

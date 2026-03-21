@@ -1,4 +1,4 @@
-// 3D menu button — brass gear/cog shape
+// 3D menu button — brass gear/cog shape, facing camera
 
 import * as pc from 'playcanvas';
 import { createBrassMaterial } from '../materials/brass.js';
@@ -16,13 +16,18 @@ export function createMenuButton(app: pc.Application): MenuButtonResult {
   const menuButton = new pc.Entity('MenuButton');
   menuButton.tags.add('menu-button');
 
+  // Pivot rotates content so button face points at camera
+  const pivot = new pc.Entity('MenuPivot');
+  pivot.setLocalEulerAngles(-90, 0, 0);
+  menuButton.addChild(pivot);
+
   // Outer ring (aged metal)
   const ring = new pc.Entity('ButtonRing');
   ring.addComponent('render', { type: 'cylinder' });
   ring.setLocalScale(0.35, 0.04, 0.35);
   ring.setLocalPosition(0, 0, 0);
   ring.render!.meshInstances[0].material = agedMat;
-  menuButton.addChild(ring);
+  pivot.addChild(ring);
 
   // Inner gear icon (brass, slightly raised)
   const gear = new pc.Entity('GearIcon');
@@ -30,7 +35,7 @@ export function createMenuButton(app: pc.Application): MenuButtonResult {
   gear.setLocalScale(0.25, 0.06, 0.25);
   gear.setLocalPosition(0, 0.02, 0);
   gear.render!.meshInstances[0].material = brassMat;
-  menuButton.addChild(gear);
+  pivot.addChild(gear);
 
   // Collision
   menuButton.addComponent('collision', {

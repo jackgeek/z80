@@ -1,4 +1,4 @@
-// 3D fire button — brass base + red dome
+// 3D fire button — brass base + red dome, facing camera
 
 import * as pc from 'playcanvas';
 import { createBrassMaterial } from '../materials/brass.js';
@@ -15,13 +15,18 @@ export function createFireButton(app: pc.Application): FireButtonResult {
   const fire = new pc.Entity('FireButton');
   fire.tags.add('fire-button');
 
+  // Pivot rotates content so button top faces camera
+  const pivot = new pc.Entity('FirePivot');
+  pivot.setLocalEulerAngles(-90, 180, 0);
+  fire.addChild(pivot);
+
   // Base cylinder
   const base = new pc.Entity('FireBase');
   base.addComponent('render', { type: 'cylinder' });
   base.setLocalScale(0.4, 0.1, 0.4);
   base.setLocalPosition(0, 0, 0);
   base.render!.meshInstances[0].material = brassMat;
-  fire.addChild(base);
+  pivot.addChild(base);
 
   // Red dome cap
   const cap = new pc.Entity('FireCap');
@@ -36,9 +41,9 @@ export function createFireButton(app: pc.Application): FireButtonResult {
   redMat.gloss = 0.6;
   redMat.update();
   cap.render!.meshInstances[0].material = redMat;
-  fire.addChild(cap);
+  pivot.addChild(cap);
 
-  // Collision for the button
+  // Collision
   fire.addComponent('collision', {
     type: 'box',
     halfExtents: new pc.Vec3(0.2, 0.15, 0.2),
