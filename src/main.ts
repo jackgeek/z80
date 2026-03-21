@@ -6,7 +6,7 @@ import { buildSceneGraph } from './scene/scene-graph.js';
 import { createStatusOverlay } from './ui/status-overlay.js';
 import { initWasm } from './emulator/wasm-loader.js';
 import { tickEmulatorFrame } from './emulator/frame-loop.js';
-import { updateMonitorTexture } from './entities/monitor.js';
+import { updateMonitorTexture, updateBorderColor } from './entities/monitor.js';
 import { getWasm, getMemory, isRunning } from './emulator/state.js';
 import { initInputBridge, setSceneActor, setMenuOpen } from './input/input-bridge.js';
 import { setGlobalStatusFn } from './ui/status-bridge.js';
@@ -47,6 +47,7 @@ async function main(): Promise<void> {
     const memory = getMemory();
     if (wasm && memory && isRunning()) {
       updateMonitorTexture(entities.screenTexture, memory, wasm);
+      updateBorderColor(entities.borderMaterial, wasm);
     }
 
     // Update scene transition tweens

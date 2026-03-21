@@ -14,6 +14,7 @@ export interface SceneEntities {
   monitor: pc.Entity;
   screenQuad: pc.Entity;
   screenTexture: pc.Texture;
+  borderMaterial: pc.StandardMaterial;
   keyboard: pc.Entity;
   keys: Map<string, pc.Entity>;
   joystick: pc.Entity;
@@ -120,6 +121,7 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
     monitor: monitorResult.monitorEntity,
     screenQuad: monitorResult.screenQuad,
     screenTexture: monitorResult.screenTexture,
+    borderMaterial: monitorResult.borderMaterial,
     keyboard: kbResult.keyboardEntity,
     keys: kbResult.keys,
     joystick: joyResult.joystickEntity,
