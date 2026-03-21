@@ -313,10 +313,21 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     return null; // no swipe transition in other states
   }
 
+  // Store pointer down position — only process key/button presses on pointerUp
+  // if no scene drag occurred
+  let pendingDownX = 0;
+  let pendingDownY = 0;
+
   function pointerDown(screenX: number, screenY: number): void {
+    pendingDownX = screenX;
+    pendingDownY = screenY;
     const viewportH = canvas.clientHeight || canvas.height;
     gestureDetector.beginTracking(screenY, viewportH);
-    handlePointerDown(screenX, screenY);
+
+    // Only handle non-deferrable actions immediately (menu dismiss, codex start)
+    if (menuOpen) {
+      handlePointerDown(screenX, screenY);
+    }
   }
 
   function pointerMove(screenX: number, screenY: number): void {
@@ -340,7 +351,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     }
   }
 
-  function pointerUp(screenX: number, screenY: number): void {
+  function pointerUp(_screenX: number, screenY: number): void {
     // Codex drag end
     if (codexDragging) {
       codexDragging = false;
@@ -372,9 +383,11 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       return;
     }
 
-    // Normal pointer up (no significant drag)
+    // Normal pointer up (no significant drag) — process deferred key/button press
     sceneDragging = false;
-    handlePointerUp(screenX, screenY);
+    gestureDetector.endTracking(screenY); // clear tracking state
+    handlePointerDown(pendingDownX, pendingDownY);
+    handlePointerUp(pendingDownX, pendingDownY);
   }
 
   // Mouse events
