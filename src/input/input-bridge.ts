@@ -2,9 +2,14 @@
 
 import * as pc from 'playcanvas';
 import { KEY_MAP, COMPOUND_KEYS } from './keyboard.js';
-import { getWasm, isRunning } from '../emulator/state.js';
+import { getWasm, isRunning, isPaused, setPaused, isTurboMode, setTurboMode } from '../emulator/state.js';
 import { initAudio } from '../audio/audio.js';
+import { resetEmulator } from '../emulator/wasm-loader.js';
+import { saveZ80 } from '../media/snapshot.js';
+import { triggerFileInput } from '../ui/file-handler.js';
+import { showStatus } from '../ui/status-bridge.js';
 import { GestureDetector } from './gesture-detector.js';
+import { CODEX_MENU_ITEMS } from '../entities/menu-codex.js';
 import type { SceneEntities } from '../scene/scene-graph.js';
 
 let audioInitialized = false;
@@ -25,6 +30,9 @@ export type JoystickType = 'sinclair1' | 'cursor' | 'kempston';
 let joystickType: JoystickType = 'sinclair1';
 let joystickActive = false;
 let firePressed = false;
+let codexDragging = false;
+let codexDragStartY = 0;
+let codexDragMoved = false;
 
 const JOYSTICK_FIRE: Record<JoystickType, { row: number; bit: number }> = {
   sinclair1: { row: 4, bit: 0x01 }, // 0
@@ -49,17 +57,89 @@ export function setSceneActor(actor: any): void {
 
 const gestureDetector = new GestureDetector();
 
+// Whether the menu is currently open (tracked via state machine subscription)
+let menuOpen = false;
+
+export function setMenuOpen(open: boolean): void {
+  menuOpen = open;
+}
+
+function handleCodexAction(action: string): void {
+  switch (action) {
+    case 'LOAD_TAPE':
+    case 'LOAD_ROM':
+      triggerFileInput();
+      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      break;
+    case 'SAVE_STATE':
+      saveZ80();
+      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      break;
+    case 'RESET':
+      resetEmulator();
+      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      break;
+    case 'TOGGLE_PAUSE':
+      setPaused(!isPaused());
+      showStatus(isPaused() ? 'Paused' : 'Resumed');
+      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      break;
+    case 'TOGGLE_TURBO':
+      setTurboMode(!isTurboMode());
+      showStatus(isTurboMode() ? 'Turbo ON' : 'Turbo OFF');
+      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      break;
+    case 'CYCLE_JOYSTICK': {
+      const types: JoystickType[] = ['sinclair1', 'cursor', 'kempston'];
+      const idx = (types.indexOf(joystickType) + 1) % types.length;
+      joystickType = types[idx];
+      showStatus(`Joystick: ${joystickType}`);
+      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      break;
+    }
+    case 'MENU_CLOSE':
+      if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+      break;
+  }
+}
+
 export function initInputBridge(app: pc.Application, entities: SceneEntities): void {
   // ── Physical keyboard input ─────────────────────────────────────────────
   window.addEventListener('keydown', (e: KeyboardEvent) => {
-    const wasm = getWasm();
-    if (!wasm || !isRunning()) return;
-
     // Don't intercept if focus is on file input
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     ensureAudio();
+
+    // Codex navigation when menu is open
+    if (menuOpen) {
+      if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        entities.codexInteraction.stepUp();
+        return;
+      }
+      if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        entities.codexInteraction.stepDown();
+        return;
+      }
+      if (e.code === 'Enter') {
+        e.preventDefault();
+        const action = entities.codexInteraction.activate();
+        handleCodexAction(action);
+        return;
+      }
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        if (sceneActor) sceneActor.send({ type: 'MENU_CLOSE' });
+        return;
+      }
+      return; // Don't process other keys while menu is open
+    }
+
+    const wasm = getWasm();
+    if (!wasm || !isRunning()) return;
 
     const compound = COMPOUND_KEYS[e.code];
     if (compound) {
@@ -110,6 +190,15 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
     const hit = raycastFromScreen(app, camera, screenX, screenY);
     if (!hit) return;
+
+    // Codex interaction (when menu is open)
+    if (hit.tags.has('menu-codex')) {
+      codexDragging = true;
+      codexDragStartY = screenY;
+      codexDragMoved = false;
+      entities.codexInteraction.onDragStart(screenY);
+      return;
+    }
 
     // Fire button press
     if (hit.tags.has('fire-button')) {
@@ -199,7 +288,26 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     handlePointerDown(screenX, screenY);
   }
 
+  function pointerMove(screenX: number, screenY: number): void {
+    if (codexDragging) {
+      codexDragMoved = true;
+      entities.codexInteraction.onDragMove(screenY);
+    }
+  }
+
   function pointerUp(screenX: number, screenY: number): void {
+    // Codex drag end
+    if (codexDragging) {
+      codexDragging = false;
+      entities.codexInteraction.onDragEnd();
+      // If it was a tap (not a drag), activate the selected item
+      if (!codexDragMoved) {
+        const action = entities.codexInteraction.activate();
+        handleCodexAction(action);
+      }
+      return;
+    }
+
     // Check for swipe gesture before handling pointer up
     const swipe = gestureDetector.endTracking(screenX, screenY);
     if (swipe && sceneActor) {
@@ -213,6 +321,9 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   canvas.addEventListener('mousedown', (e: MouseEvent) => {
     pointerDown(e.offsetX, e.offsetY);
   });
+  canvas.addEventListener('mousemove', (e: MouseEvent) => {
+    pointerMove(e.offsetX, e.offsetY);
+  });
   canvas.addEventListener('mouseup', (e: MouseEvent) => {
     pointerUp(e.offsetX, e.offsetY);
   });
@@ -223,6 +334,13 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     const touch = e.changedTouches[0];
     const rect = canvas.getBoundingClientRect();
     pointerDown(touch.clientX - rect.left, touch.clientY - rect.top);
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e: TouchEvent) => {
+    e.preventDefault();
+    const touch = e.changedTouches[0];
+    const rect = canvas.getBoundingClientRect();
+    pointerMove(touch.clientX - rect.left, touch.clientY - rect.top);
   }, { passive: false });
 
   canvas.addEventListener('touchend', (e: TouchEvent) => {
@@ -252,7 +370,7 @@ function raycastFromScreen(
   let closestEntity: pc.Entity | null = null;
   let closestDist = Infinity;
 
-  const tags = ['spectrum-key', 'fire-button', 'menu-button', 'joystick'];
+  const tags = ['spectrum-key', 'fire-button', 'menu-button', 'joystick', 'menu-codex'];
   for (const tag of tags) {
     const tagEntities = app.root.findByTag(tag) as pc.Entity[];
     for (const entity of tagEntities) {

@@ -6,7 +6,8 @@ import { createKeyboard3D, type Keyboard3DResult } from '../entities/keyboard3d.
 import { createJoystick3D, type Joystick3DResult } from '../entities/joystick3d.js';
 import { createFireButton, type FireButtonResult } from '../entities/fire-button.js';
 import { createMenuButton, type MenuButtonResult } from '../entities/menu-button.js';
-import { createBrassMaterial } from '../materials/brass.js';
+import { createMenuCodex, type MenuCodexResult } from '../entities/menu-codex.js';
+import { CodexInteraction } from '../input/codex-interaction.js';
 
 export interface SceneEntities {
   camera: pc.Entity;
@@ -21,6 +22,7 @@ export interface SceneEntities {
   fireButtonCap: pc.Entity;
   menuButton: pc.Entity;
   menuCodex: pc.Entity;
+  codexInteraction: CodexInteraction;
 }
 
 export function buildSceneGraph(app: pc.Application): SceneEntities {
@@ -107,17 +109,11 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   menuResult.menuButtonEntity.setLocalScale(0.6, 0.6, 0.6);
   app.root.addChild(menuResult.menuButtonEntity);
 
-  // ── Menu Codex placeholder ─────────────────────────────────────────────
-  const menuCodex = new pc.Entity('MenuCodex');
-  menuCodex.tags.add('menu-codex');
-  menuCodex.addComponent('render', { type: 'cylinder' });
-  menuCodex.setLocalScale(1, 2.5, 1);
-  menuCodex.setLocalPosition(0, 0, -8);
-  menuCodex.setLocalEulerAngles(0, 0, 90);
-  const brassMat = createBrassMaterial(app.graphicsDevice);
-  menuCodex.render!.meshInstances[0].material = brassMat;
-  menuCodex.enabled = false; // hidden until menu opens
-  app.root.addChild(menuCodex);
+  // ── Menu Codex ─────────────────────────────────────────────────────────
+  const codexResult: MenuCodexResult = createMenuCodex(app);
+  codexResult.codexEntity.setLocalPosition(0, 0, -8);
+  app.root.addChild(codexResult.codexEntity);
+  const codexInteraction = new CodexInteraction(codexResult);
 
   return {
     camera,
@@ -131,6 +127,7 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
     fireButton: fireResult.fireEntity,
     fireButtonCap: fireResult.fireButtonCap,
     menuButton: menuResult.menuButtonEntity,
-    menuCodex,
+    menuCodex: codexResult.codexEntity,
+    codexInteraction,
   };
 }

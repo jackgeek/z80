@@ -8,7 +8,7 @@ import { initWasm } from './emulator/wasm-loader.js';
 import { tickEmulatorFrame } from './emulator/frame-loop.js';
 import { updateMonitorTexture } from './entities/monitor.js';
 import { getWasm, getMemory, isRunning } from './emulator/state.js';
-import { initInputBridge, setSceneActor } from './input/input-bridge.js';
+import { initInputBridge, setSceneActor, setMenuOpen } from './input/input-bridge.js';
 import { setGlobalStatusFn } from './ui/status-bridge.js';
 import { initFileHandler } from './ui/file-handler.js';
 import { createSceneMachineActor } from './state-machine/machine.js';
@@ -51,6 +51,9 @@ async function main(): Promise<void> {
 
     // Update scene transition tweens
     updateTweens(dt);
+
+    // Update codex spin interaction
+    entities.codexInteraction.update(dt);
   });
 
   // 6. Wire global status function for media modules
@@ -62,6 +65,12 @@ async function main(): Promise<void> {
   // 8. Initialize input system + wire state machine actor
   initInputBridge(app, entities);
   setSceneActor(sceneActor);
+
+  // Track menu open/close state for input routing
+  sceneActor.subscribe((state) => {
+    const isMenu = state.value === 'menuPortrait' || state.value === 'menuLandscape';
+    setMenuOpen(isMenu);
+  });
 
   // 9. Initialize file handling (drag-drop + hidden file input)
   initFileHandler();

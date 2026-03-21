@@ -500,12 +500,12 @@
 
 ### Phase 5: Menu Codex
 
-**Status**: Not Started
-**Progress**: 0/8 tasks complete (0%)
-**Phase Started**: TBD
-**Phase Completed**: TBD
+**Status**: Complete
+**Progress**: 8/8 tasks complete (100%)
+**Phase Started**: 2026-03-21
+**Phase Completed**: 2026-03-21
 
-- [ ] 5.0 Build the Da Vinci cryptex-style Menu Codex with spin interaction and emulator controls
+- [x] 5.0 Build the Da Vinci cryptex-style Menu Codex with spin interaction and emulator controls
   - **Relevant Documentation:**
     - `docs/features/steampunk-ui/design.md` - Menu Codex detail (section 10), codex options, interaction spec
     - `CLAUDE.md` - Project overview, key conventions
