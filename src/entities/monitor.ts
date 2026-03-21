@@ -36,12 +36,24 @@ export interface MonitorResult {
   borderMaterial: pc.StandardMaterial;
 }
 
-// Off-screen canvas for texture updates (avoids lock/unlock API issues)
-const offCanvas = document.createElement('canvas');
-offCanvas.width = SCREEN_WIDTH;
-offCanvas.height = SCREEN_HEIGHT;
-const offCtx = offCanvas.getContext('2d')!;
-const offImageData = offCtx.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+// Two-canvas approach for crisp pixel rendering:
+// 1. Native canvas: 256x192, receives raw WASM RGBA data
+// 2. Upscaled canvas: 3x (768x576), nearest-neighbor blit for crisp pixels
+const UPSCALE = 3;
+const TEX_W = SCREEN_WIDTH * UPSCALE;
+const TEX_H = SCREEN_HEIGHT * UPSCALE;
+
+const nativeCanvas = document.createElement('canvas');
+nativeCanvas.width = SCREEN_WIDTH;
+nativeCanvas.height = SCREEN_HEIGHT;
+const nativeCtx = nativeCanvas.getContext('2d')!;
+const nativeImageData = nativeCtx.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+const upscaledCanvas = document.createElement('canvas');
+upscaledCanvas.width = TEX_W;
+upscaledCanvas.height = TEX_H;
+const upscaledCtx = upscaledCanvas.getContext('2d')!;
+upscaledCtx.imageSmoothingEnabled = false;
 
 export function createMonitor(app: pc.Application): MonitorResult {
   const device = app.graphicsDevice;
@@ -50,18 +62,21 @@ export function createMonitor(app: pc.Application): MonitorResult {
   monitor.tags.add('swipeable');
 
   // ── Screen texture via canvas source ──────────────────────────────────────
+  // GPU uses LINEAR filtering on the pre-upscaled texture. Since the CPU already
+  // did nearest-neighbor 3x upscale, LINEAR just smoothly interpolates between
+  // the crisp pixel blocks instead of dropping pixels at non-integer scale ratios.
   const screenTexture = new pc.Texture(device, {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
+    width: TEX_W,
+    height: TEX_H,
     format: pc.PIXELFORMAT_RGBA8,
-    minFilter: pc.FILTER_NEAREST,
-    magFilter: pc.FILTER_NEAREST,
+    minFilter: pc.FILTER_LINEAR,
+    magFilter: pc.FILTER_LINEAR,
     addressU: pc.ADDRESS_CLAMP_TO_EDGE,
     addressV: pc.ADDRESS_CLAMP_TO_EDGE,
     mipmaps: false,
   });
   // Initial source — will be updated each frame
-  screenTexture.setSource(offCanvas);
+  screenTexture.setSource(upscaledCanvas);
 
   const screenMat = new pc.StandardMaterial();
   screenMat.diffuseMap = screenTexture;
@@ -191,8 +206,9 @@ export function updateMonitorTexture(
   if (!screenSrc || screenSrc.buffer !== memory.buffer) {
     screenSrc = new Uint8Array(memory.buffer, wasm.getScreenBaseAddr(), SCREEN_BYTES);
   }
-  // Copy WASM RGBA buffer to canvas ImageData, then update texture source
-  offImageData.data.set(screenSrc);
-  offCtx.putImageData(offImageData, 0, 0);
-  screenTexture.setSource(offCanvas);
+  // Copy WASM RGBA to native canvas, then nearest-neighbor upscale to texture canvas
+  nativeImageData.data.set(screenSrc);
+  nativeCtx.putImageData(nativeImageData, 0, 0);
+  upscaledCtx.drawImage(nativeCanvas, 0, 0, TEX_W, TEX_H);
+  screenTexture.setSource(upscaledCanvas);
 }
