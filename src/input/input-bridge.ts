@@ -288,9 +288,10 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   // ── Gesture-aware pointer events ──────────────────────────────────────────
 
   function pointerDown(screenX: number, screenY: number): void {
-    // Start gesture tracking on any swipeable entity
+    // Start gesture tracking — walk up hierarchy to find swipeable ancestor
     const hit = raycastFromScreen(app, camera, screenX, screenY);
-    gestureDetector.beginTracking(screenX, screenY, hit);
+    const swipeable = findSwipeableAncestor(hit);
+    gestureDetector.beginTracking(screenX, screenY, swipeable);
     handlePointerDown(screenX, screenY);
   }
 
@@ -407,6 +408,15 @@ function getEntityAABB(entity: pc.Entity): pc.BoundingBox {
     (scale.z * parentScale.z) / 2
   );
   return new pc.BoundingBox(pos, halfExtents);
+}
+
+function findSwipeableAncestor(entity: pc.Entity | null): pc.Entity | null {
+  let current = entity;
+  while (current) {
+    if (current.tags?.has('swipeable')) return current;
+    current = current.parent as pc.Entity | null;
+  }
+  return null;
 }
 
 function findEntityByName(root: pc.Entity, name: string): pc.Entity | null {
