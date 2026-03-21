@@ -29,7 +29,7 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
     fov: 45,
     nearClip: 0.1,
     farClip: 100,
-    clearColor: new pc.Color(0.08, 0.06, 0.05),
+    clearColor: new pc.Color(0.53, 0.68, 0.82),
   });
   camera.setLocalPosition(0, 0, 7);
   cameraRig.addChild(camera);
@@ -83,7 +83,7 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   // Tilt keyboard toward camera so key faces are visible and clickable
   const kbResult: Keyboard3DResult = createKeyboard3D(app);
   kbResult.keyboardEntity.setLocalPosition(0, -1.6, 0.5);
-  kbResult.keyboardEntity.setLocalEulerAngles(-65, 0, 0);
+  kbResult.keyboardEntity.setLocalEulerAngles(65, 0, 0);
   kbResult.keyboardEntity.setLocalScale(0.65, 0.65, 0.65);
   app.root.addChild(kbResult.keyboardEntity);
 
