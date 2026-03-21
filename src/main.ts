@@ -8,6 +8,7 @@ import { initWasm } from './emulator/wasm-loader.js';
 import { tickEmulatorFrame } from './emulator/frame-loop.js';
 import { updateMonitorTexture } from './entities/monitor.js';
 import { getWasm, getMemory, isRunning } from './emulator/state.js';
+import { initInputBridge } from './input/input-bridge.js';
 
 const FRAME_INTERVAL = 1000 / 50; // 20ms per PAL frame
 
@@ -43,6 +44,9 @@ async function main(): Promise<void> {
 
   // 5. Load WASM and ROM
   await initWasm(setStatusText);
+
+  // 6. Initialize input system (physical keyboard + 3D entity click/touch)
+  initInputBridge(app, entities);
 }
 
 main().catch(console.error);

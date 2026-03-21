@@ -1,11 +1,10 @@
 /**
- * Keyboard input handling for ZX Spectrum emulator.
- * Maps physical keyboard events to the Spectrum's 8x5 keyboard matrix.
+ * ZX Spectrum keyboard matrix mapping data.
+ * Maps physical keyboard event codes to Spectrum's 8x5 keyboard matrix.
+ * The actual event listeners are in input-bridge.ts.
  */
 
-import { getWasm, isRunning } from '../emulator/state.js';
-
-interface KeyMapping {
+export interface KeyMapping {
   row: number;
   bit: number;
 }
@@ -70,53 +69,3 @@ export const COMPOUND_KEYS: Record<string, KeyMapping[]> = {
   'ArrowUp':    [{ row: 0, bit: 0x01 }, { row: 4, bit: 0x08 }],
   'ArrowRight': [{ row: 0, bit: 0x01 }, { row: 4, bit: 0x04 }],
 };
-
-/**
- * Attach keydown and keyup event listeners to the document for
- * ZX Spectrum keyboard input.
- */
-export function attachKeyboardHandlers(): void {
-  document.addEventListener('keydown', (e) => {
-    if (!getWasm() || !isRunning()) return;
-
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-
-    const compound = COMPOUND_KEYS[e.code];
-    if (compound) {
-      e.preventDefault();
-      for (const k of compound) {
-        getWasm()!.keyDown(k.row, k.bit);
-      }
-      return;
-    }
-
-    const mapping = KEY_MAP[e.code];
-    if (mapping) {
-      e.preventDefault();
-      getWasm()!.keyDown(mapping.row, mapping.bit);
-    }
-  });
-
-  document.addEventListener('keyup', (e) => {
-    if (!getWasm() || !isRunning()) return;
-
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-
-    const compound = COMPOUND_KEYS[e.code];
-    if (compound) {
-      e.preventDefault();
-      for (const k of compound) {
-        getWasm()!.keyUp(k.row, k.bit);
-      }
-      return;
-    }
-
-    const mapping = KEY_MAP[e.code];
-    if (mapping) {
-      e.preventDefault();
-      getWasm()!.keyUp(mapping.row, mapping.bit);
-    }
-  });
-}

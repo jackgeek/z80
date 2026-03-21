@@ -2,12 +2,15 @@
 
 import * as pc from 'playcanvas';
 import { createMonitor, type MonitorResult } from '../entities/monitor.js';
+import { createKeyboard3D, type Keyboard3DResult } from '../entities/keyboard3d.js';
 
 export interface SceneEntities {
   camera: pc.Entity;
   monitor: pc.Entity;
   screenQuad: pc.Entity;
   screenTexture: pc.Texture;
+  keyboard: pc.Entity;
+  keys: Map<string, pc.Entity>;
 }
 
 export function buildSceneGraph(app: pc.Application): SceneEntities {
@@ -65,13 +68,21 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
 
   // ── Monitor ───────────────────────────────────────────────────────────────
   const monitorResult: MonitorResult = createMonitor(app);
-  monitorResult.monitorEntity.setLocalPosition(0, 0, 0);
+  monitorResult.monitorEntity.setLocalPosition(0, 0.8, 0);
   app.root.addChild(monitorResult.monitorEntity);
+
+  // ── Keyboard ──────────────────────────────────────────────────────────────
+  const kbResult: Keyboard3DResult = createKeyboard3D(app);
+  kbResult.keyboardEntity.setLocalPosition(0, -1.5, 0);
+  kbResult.keyboardEntity.setLocalScale(0.65, 0.65, 0.65);
+  app.root.addChild(kbResult.keyboardEntity);
 
   return {
     camera,
     monitor: monitorResult.monitorEntity,
     screenQuad: monitorResult.screenQuad,
     screenTexture: monitorResult.screenTexture,
+    keyboard: kbResult.keyboardEntity,
+    keys: kbResult.keys,
   };
 }
