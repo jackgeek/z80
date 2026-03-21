@@ -1,59 +1,59 @@
-// Entity-targeted swipe detection for scene transitions
+// 2D screen-space drag gesture for scene transitions
+// Provides continuous progress (0→1) during drag, and commit/cancel on release
 
-import * as pc from 'playcanvas';
-
-export interface SwipeEvent {
+export interface DragState {
+  progress: number;     // 0 = at start scene, 1 = fully at target scene
   direction: 'up' | 'down';
-  entity: pc.Entity;
 }
 
-const SWIPE_THRESHOLD = 50;  // pixels
-const MAX_SWIPE_TIME = 500;  // ms
+const COMMIT_THRESHOLD = 0.25; // drag 25% of screen height to commit
 
 export class GestureDetector {
-  private startX = 0;
   private startY = 0;
-  private startTime = 0;
-  private startEntity: pc.Entity | null = null;
+  private screenHeight = 0;
   private tracking = false;
+  private _direction: 'up' | 'down' = 'up';
 
-  beginTracking(screenX: number, screenY: number, entity: pc.Entity | null): void {
-    if (!entity || !entity.tags.has('swipeable')) {
-      this.tracking = false;
-      return;
-    }
-    this.startX = screenX;
+  beginTracking(screenY: number, viewportHeight: number): void {
     this.startY = screenY;
-    this.startTime = performance.now();
-    this.startEntity = entity;
+    this.screenHeight = viewportHeight;
     this.tracking = true;
   }
 
-  endTracking(screenX: number, screenY: number): SwipeEvent | null {
-    if (!this.tracking || !this.startEntity) {
-      this.tracking = false;
-      return null;
-    }
+  isTracking(): boolean {
+    return this.tracking;
+  }
 
-    const elapsed = performance.now() - this.startTime;
+  /** Returns drag progress during move. Null if not tracking. */
+  updateTracking(screenY: number): DragState | null {
+    if (!this.tracking) return null;
+
     const dy = screenY - this.startY;
-    const dx = screenX - this.startX;
+    const absDy = Math.abs(dy);
 
+    // Need a minimum movement to determine direction
+    if (absDy < 5) return null;
+
+    this._direction = dy < 0 ? 'up' : 'down';
+    const progress = Math.min(1, absDy / (this.screenHeight * 0.4));
+
+    return { progress, direction: this._direction };
+  }
+
+  /** Returns true if the gesture should commit to the transition, false to cancel. */
+  endTracking(screenY: number): { commit: boolean; direction: 'up' | 'down' } | null {
+    if (!this.tracking) return null;
     this.tracking = false;
 
-    // Must be primarily vertical, exceed threshold, and within time limit
-    if (Math.abs(dy) > SWIPE_THRESHOLD && Math.abs(dy) > Math.abs(dx) && elapsed < MAX_SWIPE_TIME) {
-      return {
-        direction: dy < 0 ? 'up' : 'down',
-        entity: this.startEntity,
-      };
-    }
+    const dy = screenY - this.startY;
+    const absDy = Math.abs(dy);
+    const direction: 'up' | 'down' = dy < 0 ? 'up' : 'down';
+    const progress = absDy / (this.screenHeight * 0.4);
 
-    return null;
+    return { commit: progress >= COMMIT_THRESHOLD, direction };
   }
 
   cancelTracking(): void {
     this.tracking = false;
-    this.startEntity = null;
   }
 }

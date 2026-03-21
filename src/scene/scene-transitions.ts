@@ -1,7 +1,7 @@
 // Tween-based scene transition engine
 
 import * as pc from 'playcanvas';
-import { computeLayout, type EntityLayout } from './scene-layouts.js';
+import { computeLayout, type EntityLayout, type SceneLayout } from './scene-layouts.js';
 import type { SceneEntities } from './scene-graph.js';
 
 const DEFAULT_DURATION = 600; // ms
@@ -65,6 +65,53 @@ export function snapToCurrentScene(): void {
     entity.setLocalEulerAngles(target.rotation[0], target.rotation[1], target.rotation[2]);
     entity.setLocalScale(target.scale[0], target.scale[1], target.scale[2]);
     if (target.visible === false) entity.enabled = false;
+  }
+}
+
+/** Lerp all entities between two scene layouts at given progress (0=from, 1=to). No tweens. */
+export function interpolateScenes(
+  fromScene: string,
+  toScene: string,
+  progress: number,
+  entities: SceneEntities
+): void {
+  const fromLayout = computeLayout(fromScene, _fov, _aspect);
+  const toLayout = computeLayout(toScene, _fov, _aspect);
+  if (!fromLayout || !toLayout) return;
+
+  const t = Math.max(0, Math.min(1, progress));
+
+  const pairs: Array<{ entity: pc.Entity; from: EntityLayout; to: EntityLayout }> = [
+    { entity: entities.monitor, from: fromLayout.monitor, to: toLayout.monitor },
+    { entity: entities.keyboard, from: fromLayout.keyboard, to: toLayout.keyboard },
+    { entity: entities.joystick, from: fromLayout.joystick, to: toLayout.joystick },
+    { entity: entities.fireButton, from: fromLayout.fireButton, to: toLayout.fireButton },
+    { entity: entities.menuButton, from: fromLayout.menuButton, to: toLayout.menuButton },
+    { entity: entities.camera, from: fromLayout.camera, to: toLayout.camera },
+  ];
+
+  for (const { entity, from, to } of pairs) {
+    if (!entity) continue;
+
+    // Show entity if either layout wants it visible
+    if (from.visible === true || to.visible === true) {
+      entity.enabled = true;
+    }
+
+    const px = from.position[0] + (to.position[0] - from.position[0]) * t;
+    const py = from.position[1] + (to.position[1] - from.position[1]) * t;
+    const pz = from.position[2] + (to.position[2] - from.position[2]) * t;
+    entity.setLocalPosition(px, py, pz);
+
+    const rx = from.rotation[0] + (to.rotation[0] - from.rotation[0]) * t;
+    const ry = from.rotation[1] + (to.rotation[1] - from.rotation[1]) * t;
+    const rz = from.rotation[2] + (to.rotation[2] - from.rotation[2]) * t;
+    entity.setLocalEulerAngles(rx, ry, rz);
+
+    const sx = from.scale[0] + (to.scale[0] - from.scale[0]) * t;
+    const sy = from.scale[1] + (to.scale[1] - from.scale[1]) * t;
+    const sz = from.scale[2] + (to.scale[2] - from.scale[2]) * t;
+    entity.setLocalScale(sx, sy, sz);
   }
 }
 

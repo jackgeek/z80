@@ -9,6 +9,7 @@ import { saveZ80 } from '../media/snapshot.js';
 import { triggerFileInput } from '../ui/file-handler.js';
 import { showStatus } from '../ui/status-bridge.js';
 import { GestureDetector } from './gesture-detector.js';
+import { interpolateScenes, getCurrentScene, transitionToScene } from '../scene/scene-transitions.js';
 import { CODEX_MENU_ITEMS } from '../entities/menu-codex.js';
 import type { SceneEntities } from '../scene/scene-graph.js';
 
@@ -301,18 +302,41 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
   // ── Gesture-aware pointer events ──────────────────────────────────────────
 
+  let sceneDragging = false; // true when user is mid-drag between scenes
+
+  function getSwipeTarget(direction: 'up' | 'down'): string | null {
+    const current = getCurrentScene();
+    if (current === 'portrait1' && direction === 'up') return 'portrait2';
+    if (current === 'portrait1' && direction === 'down') return 'portrait2';
+    if (current === 'portrait2' && direction === 'up') return 'portrait1';
+    if (current === 'portrait2' && direction === 'down') return 'portrait1';
+    return null; // no swipe transition in other states
+  }
+
   function pointerDown(screenX: number, screenY: number): void {
-    // Start gesture tracking — walk up hierarchy to find swipeable ancestor
-    const hit = raycastFromScreen(app, camera, screenX, screenY);
-    const swipeable = findSwipeableAncestor(hit);
-    gestureDetector.beginTracking(screenX, screenY, swipeable);
+    const viewportH = canvas.clientHeight || canvas.height;
+    gestureDetector.beginTracking(screenY, viewportH);
     handlePointerDown(screenX, screenY);
   }
 
   function pointerMove(screenX: number, screenY: number): void {
+    // Codex drag
     if (codexDragging) {
       codexDragMoved = true;
       entities.codexInteraction.onDragMove(screenY);
+      return;
+    }
+
+    // Scene drag — interpolate between current and target scene
+    if (gestureDetector.isTracking()) {
+      const drag = gestureDetector.updateTracking(screenY);
+      if (drag && drag.progress > 0.02) {
+        const target = getSwipeTarget(drag.direction);
+        if (target) {
+          sceneDragging = true;
+          interpolateScenes(getCurrentScene(), target, drag.progress, entities);
+        }
+      }
     }
   }
 
@@ -321,7 +345,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     if (codexDragging) {
       codexDragging = false;
       entities.codexInteraction.onDragEnd();
-      // If it was a tap (not a drag), activate the selected item
       if (!codexDragMoved) {
         const action = entities.codexInteraction.activate();
         handleCodexAction(action);
@@ -329,13 +352,29 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       return;
     }
 
-    // Check for swipe gesture before handling pointer up
-    const swipe = gestureDetector.endTracking(screenX, screenY);
-    if (swipe && sceneActor) {
-      sendScene({ type: 'SWIPE', direction: swipe.direction });
-    } else {
-      handlePointerUp(screenX, screenY);
+    // Scene drag end — commit or cancel
+    const result = gestureDetector.endTracking(screenY);
+    if (sceneDragging && result) {
+      sceneDragging = false;
+      const target = getSwipeTarget(result.direction);
+      if (result.commit && target) {
+        // Commit: send SWIPE to state machine (which will tween to final position)
+        sendScene({ type: 'SWIPE', direction: result.direction });
+      } else {
+        // Cancel: snap back to current scene
+        sendScene({ type: 'SWIPE_CANCEL' });
+        // Re-transition to current scene to animate back
+        const current = getCurrentScene();
+        if (sceneActor) {
+          transitionToScene(current, entities);
+        }
+      }
+      return;
     }
+
+    // Normal pointer up (no significant drag)
+    sceneDragging = false;
+    handlePointerUp(screenX, screenY);
   }
 
   // Mouse events
@@ -422,15 +461,6 @@ function getEntityAABB(entity: pc.Entity): pc.BoundingBox {
     (scale.z * parentScale.z) / 2
   );
   return new pc.BoundingBox(pos, halfExtents);
-}
-
-function findSwipeableAncestor(entity: pc.Entity | null): pc.Entity | null {
-  let current = entity;
-  while (current) {
-    if (current.tags?.has('swipeable')) return current;
-    current = current.parent as pc.Entity | null;
-  }
-  return null;
 }
 
 function findEntityByName(root: pc.Entity, name: string): pc.Entity | null {
