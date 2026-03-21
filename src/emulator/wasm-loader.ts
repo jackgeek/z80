@@ -1,15 +1,12 @@
 import {
   setWasm, setMemory, setRunning, setRomLoaded, setPaused,
-  setCachedRomData, getWasm, getMemory, getCachedRomData, getAnimFrameId,
-  isDebugVisible
+  setCachedRomData, getWasm, getMemory, getCachedRomData
 } from './state.js';
 import type { WasmExports } from './wasm-types.js';
 import { initAudio } from '../audio/audio.js';
-import { renderFrame } from '../video/screen.js';
-import { initDebugView, renderDebugView } from '../debug/debug-view.js';
-import { startFrameLoop } from './frame-loop.js';
 
-export async function initWasm(): Promise<void> {
+export async function initWasm(onStatus?: (msg: string) => void): Promise<void> {
+  const status = onStatus ?? console.log;
   const memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
   setMemory(memory);
 
@@ -27,32 +24,33 @@ export async function initWasm(): Promise<void> {
     const wasm = result.instance.exports as unknown as WasmExports;
     setWasm(wasm);
     wasm.init();
-    document.getElementById('status')!.textContent = 'Loading ROM...';
+    status('Loading ROM...');
 
     try {
       const romResp = await fetch('48.rom');
       if (romResp.ok) {
         const romBuf = await romResp.arrayBuffer();
-        loadROM(romBuf, false);
+        loadROM(romBuf, false, onStatus);
       } else {
-        document.getElementById('status')!.textContent = '48.rom not found. Drop a ZX Spectrum 48K ROM file onto the page.';
+        status('48.rom not found. Drop a ZX Spectrum 48K ROM file onto the page.');
       }
     } catch {
-      document.getElementById('status')!.textContent = 'Could not load 48.rom. Drop a ROM file onto the page.';
+      status('Could not load 48.rom. Drop a ROM file onto the page.');
     }
   } catch (e) {
-    document.getElementById('status')!.textContent = 'Failed to load WASM: ' + (e as Error).message;
+    status('Failed to load WASM: ' + (e as Error).message);
     console.error(e);
   }
 }
 
-export function loadROM(data: ArrayBuffer, fromUserGesture = true): void {
+export function loadROM(data: ArrayBuffer, fromUserGesture = true, onStatus?: (msg: string) => void): void {
+  const status = onStatus ?? console.log;
   const wasm = getWasm();
   if (!wasm) return;
   if (fromUserGesture) initAudio();
   const bytes = new Uint8Array(data);
   if (bytes.length < 1024 || bytes.length > 16384) {
-    document.getElementById('status')!.textContent = 'Invalid ROM size. Expected 16384 bytes for ZX Spectrum 48K ROM.';
+    status('Invalid ROM size. Expected 16384 bytes for ZX Spectrum 48K ROM.');
     return;
   }
   wasm.init();
@@ -63,22 +61,11 @@ export function loadROM(data: ArrayBuffer, fromUserGesture = true): void {
   setRomLoaded(true);
   setRunning(true);
   setPaused(false);
-  document.getElementById('status')!.textContent = 'ROM loaded. Running. Drag & drop a .tap file to load software.';
-  if (!getAnimFrameId()) startFrameLoop();
-
-  // Initialise debug memory view
-  const memory = getMemory();
-  if (memory) {
-    try {
-      initDebugView(memory, wasm, {
-        isPaused: () => false, // will be updated by frame-loop
-        renderFrame: renderFrame
-      });
-    } catch { /* debug-view not ready yet */ }
-  }
+  status('ROM loaded. Running. Drag & drop a .tap file to load software.');
 }
 
-export function resetEmulator(): void {
+export function resetEmulator(onStatus?: (msg: string) => void): void {
+  const status = onStatus ?? console.log;
   const wasm = getWasm();
   const cachedRomData = getCachedRomData();
   if (!wasm || !cachedRomData) return;
@@ -89,6 +76,5 @@ export function resetEmulator(): void {
   setRunning(true);
   setRomLoaded(true);
   setPaused(false);
-  document.getElementById('pause-btn')!.textContent = 'Pause';
-  document.getElementById('status')!.textContent = 'Reset. Running.';
+  status('Reset. Running.');
 }
