@@ -1,7 +1,7 @@
 // Tween-based scene transition engine
 
 import * as pc from 'playcanvas';
-import { LAYOUTS, type EntityLayout } from './scene-layouts.js';
+import { computeLayout, type EntityLayout } from './scene-layouts.js';
 import type { SceneEntities } from './scene-graph.js';
 
 const DEFAULT_DURATION = 600; // ms
@@ -26,12 +26,57 @@ function easeInOutSine(t: number): number {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+// Viewport info needed for responsive layout computation
+let _fov = 45;
+let _aspect = 1;
+
+export function setViewportParams(fovDeg: number, aspect: number): void {
+  _fov = fovDeg;
+  _aspect = aspect;
+}
+
+// Track current scene so we can recompute positions on resize
+let _currentScene = '';
+let _entities: SceneEntities | null = null;
+
+export function getCurrentScene(): string { return _currentScene; }
+
+/** Instantly reposition all entities for current scene (no tween). Called on resize. */
+export function snapToCurrentScene(): void {
+  if (!_currentScene || !_entities) return;
+  const layout = computeLayout(_currentScene, _fov, _aspect);
+  if (!layout) return;
+
+  const entityMap: Array<{ entity: pc.Entity; target: EntityLayout }> = [
+    { entity: _entities.monitor, target: layout.monitor },
+    { entity: _entities.keyboard, target: layout.keyboard },
+    { entity: _entities.joystick, target: layout.joystick },
+    { entity: _entities.fireButton, target: layout.fireButton },
+    { entity: _entities.menuButton, target: layout.menuButton },
+    { entity: _entities.camera, target: layout.camera },
+  ];
+  if (_entities.menuCodex) {
+    entityMap.push({ entity: _entities.menuCodex, target: layout.menuCodex });
+  }
+
+  for (const { entity, target } of entityMap) {
+    if (target.visible === true) entity.enabled = true;
+    entity.setLocalPosition(target.position[0], target.position[1], target.position[2]);
+    entity.setLocalEulerAngles(target.rotation[0], target.rotation[1], target.rotation[2]);
+    entity.setLocalScale(target.scale[0], target.scale[1], target.scale[2]);
+    if (target.visible === false) entity.enabled = false;
+  }
+}
+
 export function transitionToScene(
   sceneName: string,
   entities: SceneEntities,
   onComplete?: () => void
 ): void {
-  const layout = LAYOUTS[sceneName];
+  _currentScene = sceneName;
+  _entities = entities;
+
+  const layout = computeLayout(sceneName, _fov, _aspect);
   if (!layout) {
     console.warn(`Unknown scene: ${sceneName}`);
     return;

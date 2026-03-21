@@ -12,7 +12,7 @@ import { initInputBridge, setSceneActor, setMenuOpen } from './input/input-bridg
 import { setGlobalStatusFn } from './ui/status-bridge.js';
 import { initFileHandler } from './ui/file-handler.js';
 import { createSceneMachineActor } from './state-machine/machine.js';
-import { updateTweens } from './scene/scene-transitions.js';
+import { updateTweens, setViewportParams, snapToCurrentScene } from './scene/scene-transitions.js';
 
 const FRAME_INTERVAL = 1000 / 50; // 20ms per PAL frame
 
@@ -81,16 +81,27 @@ async function main(): Promise<void> {
   // 9. Initialize file handling (drag-drop + hidden file input)
   initFileHandler();
 
-  // 10. Detect initial orientation and send to state machine
+  // 10. Set initial viewport params for responsive layouts
+  function updateViewport(): void {
+    const canvas = app.graphicsDevice.canvas;
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    setViewportParams(45, aspect); // FOV matches camera
+  }
+  updateViewport();
+
+  // 11. Detect initial orientation and send to state machine
   const orientation = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
   console.log(`[SceneMachine] initial orientation: ${orientation}`);
   if (orientation === 'landscape') {
     sceneActor.send({ type: 'ORIENTATION_CHANGE', orientation: 'landscape' });
   }
 
-  // 11. Listen for orientation changes
+  // 12. Listen for resize — update viewport params + snap positions + check orientation
   let currentOrientation = orientation;
   window.addEventListener('resize', () => {
+    updateViewport();
+    snapToCurrentScene(); // instantly reposition for new viewport
+
     const newOrientation = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
     if (newOrientation !== currentOrientation) {
       console.log(`[SceneMachine] orientation change: ${currentOrientation} → ${newOrientation}`);
