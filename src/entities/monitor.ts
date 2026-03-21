@@ -18,13 +18,20 @@ export interface MonitorResult {
   screenTexture: pc.Texture;
 }
 
+// Off-screen canvas for texture updates (avoids lock/unlock API issues)
+const offCanvas = document.createElement('canvas');
+offCanvas.width = SCREEN_WIDTH;
+offCanvas.height = SCREEN_HEIGHT;
+const offCtx = offCanvas.getContext('2d')!;
+const offImageData = offCtx.createImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+
 export function createMonitor(app: pc.Application): MonitorResult {
   const device = app.graphicsDevice;
   const brassMat = createBrassMaterial(device);
   const monitor = new pc.Entity('Monitor');
   monitor.tags.add('swipeable');
 
-  // ── Screen quad with dynamic texture ──────────────────────────────────────
+  // ── Screen texture via canvas source ──────────────────────────────────────
   const screenTexture = new pc.Texture(device, {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
@@ -35,11 +42,13 @@ export function createMonitor(app: pc.Application): MonitorResult {
     addressV: pc.ADDRESS_CLAMP_TO_EDGE,
     mipmaps: false,
   });
+  // Initial source — will be updated each frame
+  screenTexture.setSource(offCanvas);
 
   const screenMat = new pc.StandardMaterial();
   screenMat.diffuseMap = screenTexture;
   screenMat.emissiveMap = screenTexture;
-  screenMat.emissive = new pc.Color(0.8, 0.8, 0.8);
+  screenMat.emissive = new pc.Color(1.0, 1.0, 1.0);
   screenMat.useLighting = false;
   screenMat.update();
 
@@ -47,7 +56,7 @@ export function createMonitor(app: pc.Application): MonitorResult {
   screenQuad.addComponent('render', { type: 'plane' });
   screenQuad.setLocalScale(SCREEN_W, 1, SCREEN_H);
   screenQuad.setLocalEulerAngles(90, 0, 0);
-  screenQuad.setLocalPosition(0, 0, 0.06);
+  screenQuad.setLocalPosition(0, 0, 0.07);
   screenQuad.render!.meshInstances[0].material = screenMat;
   monitor.addChild(screenQuad);
 
@@ -133,9 +142,8 @@ export function updateMonitorTexture(
   if (!screenSrc || screenSrc.buffer !== memory.buffer) {
     screenSrc = new Uint8Array(memory.buffer, wasm.getScreenBaseAddr(), SCREEN_BYTES);
   }
-  const pixels = screenTexture.lock();
-  if (pixels) {
-    (pixels as Uint8Array).set(screenSrc);
-    screenTexture.unlock();
-  }
+  // Copy WASM RGBA buffer to canvas ImageData, then update texture source
+  offImageData.data.set(screenSrc);
+  offCtx.putImageData(offImageData, 0, 0);
+  screenTexture.setSource(offCanvas);
 }
