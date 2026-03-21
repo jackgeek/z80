@@ -1,0 +1,689 @@
+# Tasks: Steam-Punk 3D UI — PlayCanvas + XState v5
+
+## Tasks
+
+### Phase 1: Foundation — PlayCanvas App + Monitor with Live Emulator
+
+**Status**: Not Started
+**Progress**: 0/12 tasks complete (0%)
+**Phase Started**: TBD
+**Phase Completed**: TBD
+
+- [ ] 1.0 Bootstrap PlayCanvas application with live WASM emulator output on a 3D brass monitor
+  - **Relevant Documentation:**
+    - `docs/features/steampunk-ui/design.md` - Full feature design, scene graph, render loop integration
+    - `CLAUDE.md` - Project overview, build conventions, key conventions
+    - `docs/architecture.md` - System architecture, WASM/JS boundary, memory layout
+    - `docs/setup.md` - Build instructions, dev workflow
+    - `src/docs/CLAUDE.md` - Frontend module overview, module relationships
+    - `src/docs/architecture.md` - Audio, file formats, WASM integration, rendering
+    - `assembly/docs/CLAUDE.md` - Z80 core overview, WASM exports
+  - [ ] 1.1 Install PlayCanvas and XState, remove Three.js
+    - Run `bun add playcanvas xstate && bun remove three @types/three`
+    - Verify `package.json` no longer contains `three` or `@types/three`
+    - Verify `bun install` succeeds and `node_modules/playcanvas` exists
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 1.2 Create `src/data/key-layout.ts` — extract keyboard layout data from `vkeyboard.ts`
+    - Copy the `VKeyDef` interface (lines 18-30 of `src/input/vkeyboard.ts`) and the `ROWS` array (lines 32-81) into a new standalone data module
+    - Export `VKeyDef` interface and `ROWS` constant
+    - Remove the `getWasm` and `initAudio` imports — this is pure data, no side effects
+    - This data will be consumed by both `keyboard3d.ts` (Phase 2) and `input-bridge.ts` (Phase 2)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 1.3 Rewrite `src/index.html` — minimal PlayCanvas canvas
+    - Replace the entire 531-line HTML with a minimal ~30-line file containing:
+      - `<canvas id="app-canvas">` filling the full viewport
+      - `<input type="file" id="file-input" accept=".tap,.tzx,.z80,.zip,.rom,.bin" style="display:none">`
+      - Inline CSS: `* { margin:0; padding:0; box-sizing:border-box }`, `html,body { width:100%; height:100%; overflow:hidden }`, `body { background:#0a0a0a; touch-action:none }`, `#app-canvas { width:100%; height:100%; display:block }`
+      - `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">`
+      - `<script type="module" src="main.ts"></script>`
+    - Keep the version display comment for version tracking
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - **Parallel Group A** (after 1.1, 1.2, 1.3 complete):
+    - [ ] 1.4 Create `src/materials/material-factory.ts` + `src/materials/brass.ts`
+      - `material-factory.ts`: Export `createProceduralTexture(device, width, height, generator)` helper that creates a canvas, runs the generator function, and returns a `pc.Texture`
+      - `brass.ts`: Export `createBrassMaterial(device)` returning a `pc.StandardMaterial` with:
+        - Diffuse color: `(0.78, 0.57, 0.11)` with noise grain in diffuse map
+        - `useMetalness = true`, `metalness = 0.9`, `gloss = 0.7`
+        - Brushed horizontal normal map (procedural canvas: flat normal `#8080FF` with subtle per-scanline perturbation), `normalMapFactor = 0.3`
+      - Import `* as pc from 'playcanvas'`
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+    - [ ] 1.5 Create `src/scene/app.ts` — PlayCanvas application bootstrap
+      - Export `initPlayCanvasApp(): pc.Application`
+      - Get canvas element `#app-canvas`
+      - Create `new pc.Application(canvas, { mouse, touch, keyboard, graphicsDeviceOptions: { antialias: true, alpha: false } })`
+      - Set `FILLMODE_FILL_WINDOW` + `RESOLUTION_AUTO`
+      - Set scene ambient light to warm dark `(0.05, 0.04, 0.03)`
+      - Call `app.start()`
+      - Add `window.addEventListener('resize', () => app.resizeCanvas())`
+      - Return the app instance
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+    - [ ] 1.6 Modify `src/emulator/frame-loop.ts` — export `tickEmulatorFrame()`
+      - Remove `import { renderFrame }` from `../video/screen.js`
+      - Remove `import { renderDebugView }` from `../debug/debug-view.js`
+      - Remove the `frameLoop()` function and its `requestAnimationFrame` calls
+      - Remove `startFrameLoop()` and `stopFrameLoop()` exports
+      - Keep `resetFrameTime()` export
+      - Add new export `tickEmulatorFrame()` that:
+        - Returns early if `!isRunning() || isPaused() || !isRomLoaded()`
+        - In turbo mode: runs 50 `wasm.frame()` calls
+        - In normal mode: runs `wasm.frame()` + if tape playing, runs 19 extra frames
+        - Calls `pushAudioFrame()` after frame execution
+        - Replace `document.getElementById('status')` error writes with `console.error` (status overlay will be wired later)
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+    - [ ] 1.7 Modify `src/emulator/wasm-loader.ts` — remove DOM dependencies
+      - Remove all `document.getElementById('status')` calls
+      - Remove `import { initDebugView }` if present
+      - Remove `import { startFrameLoop }` — the PlayCanvas update loop will call `tickEmulatorFrame()` instead
+      - Export `initWasm()` that: creates memory, fetches + instantiates WASM, calls `wasm.init()`, fetches and loads `48.rom`
+      - Accept an optional `onStatus?: (msg: string) => void` callback parameter for status reporting
+      - Keep `loadROM()` export (used by file handler for custom ROMs)
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+  - [ ] 1.8 Create `src/entities/monitor.ts` — 3D CRT monitor with dynamic texture
+    - After Parallel Group A completes
+    - Export `createMonitor(app): { monitorEntity: pc.Entity, screenQuad: pc.Entity, screenTexture: pc.Texture }`
+    - Create the monitor entity hierarchy per design doc section 13:
+      - `BrassFrame`: 4 thin box entities forming a bezel around the screen opening, using brass material
+      - `ScreenQuad`: plane entity (aspect 256:192) with a dynamic `pc.Texture` (256x192, `PIXELFORMAT_RGBA8`, `FILTER_NEAREST`, `ADDRESS_CLAMP_TO_EDGE`). Material: `emissiveMap = texture`, `useLighting = false` (self-lit screen)
+      - `Rivets`: 4 small spheres at corners with brass material
+      - `SteamPipes`: 2 cylinder entities along left/right edges with brass material
+    - Tag the monitor entity with `'swipeable'`
+    - Export `updateMonitorTexture(screenTexture, memory, wasm)` function that copies RGBA bytes from `wasm.getScreenBaseAddr()` offset in WASM memory into the texture via `lock()`/`unlock()`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 1.9 Create `src/scene/scene-graph.ts` — initial scene graph (camera + lights + monitor only)
+    - Export `SceneEntities` interface (start with: `camera`, `monitor`, `screenQuad`, `screenTexture`)
+    - Export `buildSceneGraph(app): SceneEntities`
+    - Create camera entity: perspective, FOV 45, position (0, 0, 7), clear color dark `(0.05, 0.04, 0.03)`
+    - Create 3 lights per design: KeyLight (directional warm 0.7), FillLight (directional cool blue 0.2), RimLight (point amber 0.4)
+    - Call `createMonitor(app)` and add to scene
+    - Position monitor at (0, 0, 0) — centered in view
+    - Add all entities to `app.root`
+    - Return the SceneEntities object
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 1.10 Create `src/ui/status-overlay.ts` — PlayCanvas 2D status text
+    - Export `createStatusOverlay(app): { setStatusText: (text: string) => void }`
+    - Create a PlayCanvas `screen` entity (screenSpace: true)
+    - Add a text `element` component anchored at bottom-center
+    - Font: use PlayCanvas default font, size 18, color light gray
+    - The `setStatusText` function updates the element text
+    - Auto-fade: clear text after 5 seconds (optional, can add later)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 1.11 Rewrite `src/main.ts` — PlayCanvas init + WASM + update loop
+    - After 1.8, 1.9, 1.10 complete
+    - Import `initPlayCanvasApp` from `scene/app.ts`
+    - Import `buildSceneGraph` from `scene/scene-graph.ts`
+    - Import `initWasm` from `emulator/wasm-loader.ts`
+    - Import `tickEmulatorFrame` from `emulator/frame-loop.ts`
+    - Import `updateMonitorTexture` from `entities/monitor.ts`
+    - Import `createStatusOverlay` from `ui/status-overlay.ts`
+    - Import `getWasm, getMemory, isRunning` from `emulator/state.ts`
+    - Main flow:
+      1. `const app = initPlayCanvasApp()`
+      2. `const entities = buildSceneGraph(app)`
+      3. `const { setStatusText } = createStatusOverlay(app)`
+      4. Wire up PlayCanvas update loop: `app.on('update', (dt) => { ... })` that calls `tickEmulatorFrame()` at 50Hz (accumulate dt, tick when >= 20ms) and `updateMonitorTexture()` each tick
+      5. `await initWasm(setStatusText)` — loads WASM + ROM
+    - Add dev debug overlay: show camera/entity position readouts (per resolved question #1). Use a second PlayCanvas text element showing entity positions, togglable via a keyboard shortcut (e.g., F12)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 1.12 Verify Phase 1 milestone + create completion summary
+    - Run `bun run dev` and verify:
+      - PlayCanvas scene loads with dark background and steampunk lighting
+      - Brass-framed 3D monitor is visible in center of viewport
+      - WASM emulator boots and Spectrum copyright screen appears as dynamic texture on monitor
+      - No scrollbars on viewport
+      - No console errors
+      - Dev debug overlay shows position readouts
+    - Run `bun run build` and verify production build succeeds
+    - Create `docs/tasks/TASK-1.0-FOUNDATION-COMPLETION-SUMMARY.md`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+
+---
+
+### Phase 2: 3D Keyboard + Input System
+
+**Status**: Not Started
+**Progress**: 0/9 tasks complete (0%)
+**Phase Started**: TBD
+**Phase Completed**: TBD
+
+- [ ] 2.0 Build interactive 3D ZX Spectrum keyboard with physical + touch/click input
+  - **Relevant Documentation:**
+    - `docs/features/steampunk-ui/design.md` - 3D keyboard spec, input pipeline, key layout data
+    - `CLAUDE.md` - Project overview, key conventions
+    - `docs/architecture.md` - System architecture, WASM/JS boundary
+    - `src/docs/CLAUDE.md` - Frontend module overview
+    - `src/docs/architecture.md` - WASM integration, input handling
+    - `assembly/docs/CLAUDE.md` - Z80 core, keyboard I/O port handling
+  - [ ] 2.1 Create `src/materials/rubber-key.ts` — key material
+    - Export `createRubberKeyMaterial(device): pc.StandardMaterial`
+    - Non-metallic (`useMetalness = false`), diffuse dark teal `(0.22, 0.31, 0.29)`, low gloss 0.2
+    - Export `createRubberKeyPressedMaterial(device)` — slightly lighter variant for press feedback
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 2.2 Create `src/entities/keyboard3d.ts` — full 3D keyboard
+    - Import `ROWS, VKeyDef` from `data/key-layout.ts`
+    - Import `createBrassMaterial` from `materials/brass.ts`
+    - Import `createRubberKeyMaterial` from `materials/rubber-key.ts`
+    - Export `createKeyboard3D(app): { keyboardEntity: pc.Entity, keys: Map<string, pc.Entity> }`
+    - Build keyboard body: dark box entity with brass edge trim (thin box entities around perimeter)
+    - Build rainbow stripe on right edge: 5 thin colored boxes (blue, red, magenta, green, cyan)
+    - Build 4 rows of keys from `ROWS` data:
+      - Each key is a box entity with `collision` component (type: 'box')
+      - Tag each key with `'spectrum-key'`
+      - Store `_specRow`, `_specBit`, `_sticky`, `_label` as custom properties on each key entity
+      - Key sizing: base width ~0.35, height ~0.12, depth ~0.3, spaced ~0.38 apart. Wide keys use `keyDef.wide` multiplier
+      - Center each row horizontally
+    - Create key label textures: use a texture atlas approach — one 1024x256 canvas with all key labels rendered, then UV-map each key's top face to its atlas region. Each label shows the main letter (white), symbol (red), and BASIC keyword (green) matching the original Spectrum layout
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 2.3 Update `src/scene/scene-graph.ts` — add keyboard to scene
+    - Extend `SceneEntities` interface with `keyboard: pc.Entity`, `keys: Map<string, pc.Entity>`
+    - Call `createKeyboard3D(app)` in `buildSceneGraph()`
+    - Position keyboard below monitor initially (y = -2.5)
+    - Tag keyboard entity with `'swipeable'`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 2.4 Modify `src/input/keyboard.ts` — keep data, remove DOM handlers
+    - Keep `KEY_MAP` and `COMPOUND_KEYS` constant exports
+    - Remove the `attachKeyboardHandlers()` function
+    - Remove the `keydown`/`keyup` event listener registrations
+    - Remove the `document.activeElement` focus check (PlayCanvas handles this differently)
+    - Export `KEY_MAP` and `COMPOUND_KEYS` as named exports only
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 2.5 Create `src/input/input-bridge.ts` — unified input routing
+    - Export `initInputBridge(app, entities, stateMachineActor?): void`
+    - **Physical keyboard input**:
+      - Listen for `keydown`/`keyup` on `window` (or use PlayCanvas `pc.Keyboard`)
+      - Look up `KEY_MAP` and `COMPOUND_KEYS` from `keyboard.ts`
+      - Call `wasm.keyDown(row, bit)` / `wasm.keyUp(row, bit)` from `emulator/state.ts`
+      - Call `initAudio()` from `audio/audio.ts` on first interaction
+      - Skip if browser focus is on the hidden `<input type="file">`
+    - **3D entity click/touch input**:
+      - On pointer down: raycast from camera through pointer position
+      - If hit entity has tag `'spectrum-key'`: read `_specRow`/`_specBit`, call `wasm.keyDown()`, animate key press (tween Y down 0.02 over 50ms, then back up)
+      - Handle sticky keys (CAPS/SYM): latch on first press, unlatch on next non-modifier key
+      - On pointer up on a `'spectrum-key'`: call `wasm.keyUp()`
+      - Call `initAudio()` on any first entity interaction
+    - The stateMachine parameter is optional for Phase 2; it will be wired in Phase 4
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 2.6 Wire keyboard input into `src/main.ts`
+    - Import `initInputBridge` from `input/input-bridge.ts`
+    - Call `initInputBridge(app, entities)` after scene graph is built and WASM is loaded
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 2.7 Verify Phase 2 milestone
+    - Run `bun run dev` and verify:
+      - 3D keyboard appears below monitor with correct Spectrum layout (4 rows, correct labels)
+      - Physical keyboard input works: typing in BASIC prompt produces correct characters
+      - Clicking/tapping 3D keys sends correct keyDown/keyUp to WASM
+      - Key press animation visible on click
+      - Sticky CAPS/SYM modifiers work (latch on tap, unlatch on next key)
+      - No console errors
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 2.8 Update component documentation
+    - Update `src/docs/CLAUDE.md` — add new modules: `data/key-layout.ts`, `entities/keyboard3d.ts`, `input/input-bridge.ts`, `materials/`
+    - Update `src/docs/architecture.md` — add PlayCanvas integration section, input pipeline diagram
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 2.9 Create phase completion summary
+    - Create `docs/tasks/TASK-2.0-KEYBOARD-INPUT-COMPLETION-SUMMARY.md`
+    - Include: what was implemented, key files created, testing done
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+
+---
+
+### Phase 3: Controls — Joystick, Fire Button, Menu Button + File Handling
+
+**Status**: Not Started
+**Progress**: 0/10 tasks complete (0%)
+**Phase Started**: TBD
+**Phase Completed**: TBD
+
+- [ ] 3.0 Build 3D joystick, fire button, and menu button entities with file loading support
+  - **Relevant Documentation:**
+    - `docs/features/steampunk-ui/design.md` - Entity specs, joystick mappings, menu codex options, file handling
+    - `CLAUDE.md` - Project overview, key conventions
+    - `docs/architecture.md` - System architecture, WASM/JS boundary
+    - `src/docs/CLAUDE.md` - Frontend module overview
+    - `src/docs/architecture.md` - Audio, file formats, WASM integration
+  - [ ] 3.1 Create `src/materials/copper.ts` + `src/materials/aged-metal.ts`
+    - `copper.ts`: Export `createCopperMaterial(device)` — diffuse `(0.72, 0.45, 0.20)`, metalness 0.85, gloss 0.5, procedural green patina spots in diffuse map
+    - `aged-metal.ts`: Export `createAgedMetalMaterial(device)` — dark iron `(0.25, 0.25, 0.28)`, metalness 0.7, gloss 0.3, rust spots in diffuse map
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - **Parallel Group A** (after 3.1 completes):
+    - [ ] 3.2 Create `src/entities/joystick3d.ts` — 4-directional joystick
+      - Export `createJoystick3D(app): { joystickEntity: pc.Entity, joystickStick: pc.Entity, joystickBall: pc.Entity }`
+      - `JoystickBase`: cylinder entity (brass material), short and wide
+      - `JoystickStick`: thin cylinder entity (copper material), centered on base
+      - `JoystickBall`: sphere entity at top of stick (brass material)
+      - Tag joystick entity with `'joystick'`
+      - The stick entity will be tilted by input-bridge when the user drags on the joystick
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+    - [ ] 3.3 Create `src/entities/fire-button.ts` — fire button
+      - Export `createFireButton(app): { fireEntity: pc.Entity, fireButtonCap: pc.Entity }`
+      - `ButtonBase`: cylinder entity (brass material)
+      - `ButtonCap`: sphere or dome entity (red emissive material)
+      - Tag fire entity with `'fire-button'`
+      - Cap will animate down on press (handled by input-bridge)
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+    - [ ] 3.4 Create `src/entities/menu-button.ts` — gear-shaped menu button
+      - Export `createMenuButton(app): { menuButtonEntity: pc.Entity }`
+      - `GearIcon`: flattened cylinder with brass material (gear shape approximated by a circle, or use a cog outline texture on the top face)
+      - `ButtonRing`: slightly larger ring around the gear (aged metal material)
+      - Tag with `'menu-button'`
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+  - [ ] 3.5 Update `src/scene/scene-graph.ts` — add joystick, fire, menu button
+    - After Parallel Group A completes
+    - Extend `SceneEntities` with `joystick`, `joystickStick`, `fireButton`, `fireButtonCap`, `menuButton`
+    - Call the three create functions in `buildSceneGraph()`
+    - Position: joystick at (-1.5, -3, 0), fire button at (1.5, -3, 0), menu button at (0, -3, 0)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 3.6 Update `src/input/input-bridge.ts` — add joystick, fire, menu handlers
+    - After 3.5 completes
+    - **Joystick interaction**:
+      - On pointer down on `'joystick'` tag: start tracking drag
+      - On pointer move: calculate direction from center, tilt stick entity toward direction (rotate X/Z), compute Sinclair 1 key mappings (default). Map to `wasm.keyDown(row, bit)` for the direction keys
+      - Support Sinclair 1 (default), Cursor, and Kempston joystick types (store current type in module state)
+      - For Kempston: call `wasm.setKempston(byte)` directly with direction bitmask
+      - On pointer up: reset stick to center, call `wasm.keyUp()` for all directions
+      - 0.3 deadzone threshold (as in current joystick.ts)
+    - **Fire button interaction**:
+      - On pointer down on `'fire-button'`: animate cap down (tween Y -0.03), call fire key down (depends on joystick type)
+      - On pointer up: animate cap back up, call fire key up
+    - **Menu button interaction**:
+      - On pointer down on `'menu-button'`: send `{ type: 'MENU_OPEN' }` to XState (placeholder — will be wired in Phase 4; for now, log to console)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 3.7 Create `src/ui/file-handler.ts` — drag-drop + file input
+    - Export `initFileHandler(setStatusText): void`
+    - **Drag-drop**: Listen for `dragenter`/`dragover`/`dragleave`/`drop` on `window`
+      - On drop: read file, determine type by extension (.rom/.bin → `loadROM()`, .tap/.tzx → `loadTapeFile()`, .z80 → `loadZ80()`, .zip → extract and recurse)
+      - Detect ROM by size: files exactly 16,384 bytes treated as ROM
+    - **Hidden file input**: Get `#file-input` element, listen for `change` event, same loading logic
+    - Export `triggerFileInput()` function that clicks the hidden input (for Menu Codex to call)
+    - Import `loadROM` from `emulator/wasm-loader.ts`
+    - Import `loadTapeFile` from `media/tape.ts`
+    - Import `loadZ80` from `media/snapshot.ts`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 3.8 Modify `src/media/tape.ts` + `src/media/snapshot.ts` — remove DOM dependencies
+    - In `tape.ts`: Replace all `document.getElementById('status')` with a status callback or import from `ui/status-overlay.ts`
+    - In `snapshot.ts`: Same status replacement. Keep the download `<a>` element trick for saving .z80 files
+    - Remove any `document.getElementById('pause-btn')` references
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 3.9 Verify Phase 3 milestone
+    - Run `bun run dev` and verify:
+      - 3D joystick, fire button, and menu button visible below keyboard
+      - Dragging on joystick tilts the stick and sends correct input to WASM (test with a game)
+      - Tapping fire button animates press and sends fire input
+      - Drag-drop a .tap file onto the viewport — file loads and runs
+      - Menu button click logs to console (state machine not yet wired)
+      - No console errors
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 3.10 Create phase completion summary
+    - Create `docs/tasks/TASK-3.0-CONTROLS-FILE-HANDLING-COMPLETION-SUMMARY.md`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+
+---
+
+### Phase 4: State Machine + Scene Transitions
+
+**Status**: Not Started
+**Progress**: 0/10 tasks complete (0%)
+**Phase Started**: TBD
+**Phase Completed**: TBD
+
+- [ ] 4.0 Implement XState v5 scene state machine with tween-based scene transitions
+  - **Relevant Documentation:**
+    - `docs/features/steampunk-ui/design.md` - State machine spec, scene layouts, transition design, XState sketch
+    - `CLAUDE.md` - Project overview, key conventions
+    - `docs/architecture.md` - System architecture
+    - `src/docs/CLAUDE.md` - Frontend module overview
+    - `src/docs/architecture.md` - Module relationships
+  - [ ] 4.1 Create `src/scene/scene-layouts.ts` — position definitions for all 5 scenes
+    - Export `EntityLayout` interface: `{ position: [x,y,z], rotation: [x,y,z], scale: [x,y,z], visible?: boolean }`
+    - Export `SceneLayout` interface: layout for each entity (monitor, keyboard, joystick, fireButton, menuButton, menuCodex, camera)
+    - Export `LAYOUTS: Record<string, SceneLayout>` with entries for: `portrait1`, `portrait2`, `landscape`, `menuPortrait`, `menuLandscape`
+    - Use the position values from design doc section 5 (Scene Layouts). Initial values will need tuning using the dev debug overlay from Phase 1
+    - Portrait1: keyboard top (y~2.2), monitor middle (y~0), controls bottom (y~-2)
+    - Portrait2: monitor top (y~2.2), keyboard middle (y~0), same bottom
+    - Landscape: monitor center scaled up, keyboard off-screen (y~-10, visible:false), controls spread wider
+    - Menu scenes: push all elements back on Z (-3), scale down (0.8), codex at center (0,0,0)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 4.2 Create `src/scene/scene-transitions.ts` — tween animation engine
+    - Export `transitionToScene(sceneName, entities, onComplete?)` — reads layout from `LAYOUTS`, tweens all entities to new positions
+    - Export `updateTweens(dt)` — called each frame from PlayCanvas update loop
+    - Implement lightweight tween system:
+      - `TweenState` struct: entity, property, startValues, endValues, elapsed, duration, onComplete
+      - `activeTweens` array managed per frame
+      - `easeInOutSine(t)` easing function: `-(Math.cos(Math.PI * t) - 1) / 2`
+      - Default duration: 600ms
+    - Helper functions: `tweenVec3(entity, property, target, duration, onComplete)` and `tweenEuler(entity, property, target, duration)`
+    - Handle `visible: false` — move to off-screen position, then disable entity after tween completes
+    - Handle `visible: true` — enable entity before starting tween
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - **Parallel Group A** (after 4.1, 4.2 complete):
+    - [ ] 4.3 Create `src/state-machine/machine.ts` + `guards.ts` + `actions.ts`
+      - `machine.ts`: XState v5 state machine using `setup()` + `createMachine()` pattern
+        - States: `portrait1`, `portrait2`, `landscape`, `menuPortrait`, `menuLandscape`
+        - Context: `{ lastPortraitScene: 'portrait1'|'portrait2', orientation: 'portrait'|'landscape', previousScene: string }`
+        - Events: `SWIPE` (with direction), `ORIENTATION_CHANGE` (with orientation), `MENU_OPEN`, `MENU_CLOSE`, `CODEX_ACTIVATE` (with index)
+        - Entry actions trigger `transitionToScene()` calls
+        - Based on the XState implementation sketch from the user's design spec
+      - `guards.ts`: `isPortrait`, `isLandscape`, `lastWasPortrait1`, `lastWasPortrait2`
+      - `actions.ts`: `createSceneActions(entities)` factory that returns action implementations calling `transitionToScene()` and managing depth-of-field
+      - Export a `createSceneMachineActor(entities)` function that creates and returns the XState actor
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+    - [ ] 4.4 Create `src/input/gesture-detector.ts` — entity-targeted swipe detection
+      - Export `GestureDetector` class
+      - Track touch/mouse start position and hit entity (via raycast)
+      - Detect swipe: vertical distance > 50px, elapsed < 500ms, started on entity tagged `'swipeable'`
+      - Return `SwipeEvent: { direction: 'up'|'down', entity: pc.Entity }` or null
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+    - [ ] 4.5 Create `src/scene/camera-rig.ts` — camera with depth-of-field
+      - Export `createCameraRig(app): pc.Entity` (can replace inline camera creation in scene-graph.ts)
+      - Export `enableDepthOfField(camera)` and `disableDepthOfField(camera)`
+      - DOF implementation: use PlayCanvas post-processing layer if available, or fallback to pushing entities back on Z + reducing opacity/brightness
+      - Used by menu state entry/exit actions
+      - **Started**: TBD
+      - **Completed**: TBD
+      - **Duration**: TBD
+  - [ ] 4.6 Wire state machine into `src/main.ts` and `src/input/input-bridge.ts`
+    - After Parallel Group A completes
+    - In `main.ts`:
+      - Import `createSceneMachineActor` and start the actor
+      - Detect initial orientation via `window.innerHeight > window.innerWidth`
+      - If landscape, send `ORIENTATION_CHANGE` event
+      - Add `matchMedia('(orientation: portrait)')` listener and `resize` handler to send `ORIENTATION_CHANGE` events
+      - Add `updateTweens(dt)` call to the PlayCanvas update loop
+    - In `input-bridge.ts`:
+      - Accept the XState actor as parameter
+      - Integrate `GestureDetector`: on swipe event, send `SWIPE` to actor
+      - Menu button click: send `MENU_OPEN` to actor (replace console.log from Phase 3)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 4.7 Update `src/scene/scene-graph.ts` — add Menu Codex placeholder
+    - Add a placeholder entity for the Menu Codex (simple cylinder with brass material, positioned off-screen)
+    - Extend `SceneEntities` with `menuCodex: pc.Entity`
+    - The full codex implementation comes in Phase 5; this is just a placeholder so transitions work
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 4.8 Verify Phase 4 milestone
+    - Run `bun run dev` and verify:
+      - On initial load in portrait: Scene 1 layout (keyboard top, monitor middle, controls bottom)
+      - Swipe up on monitor: smooth transition to Scene 2 (monitor top, keyboard middle)
+      - Swipe down on keyboard: smooth transition back to Scene 1
+      - Resize window to landscape: smooth transition to Scene 3 (monitor center, keyboard off-screen)
+      - Resize back to portrait: returns to last portrait scene (1 or 2)
+      - Menu button click: transition to menu scene (elements push back, placeholder codex appears)
+      - All transitions animate smoothly with easeInOutSine easing over ~600ms
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 4.9 Update component documentation
+    - Update `src/docs/CLAUDE.md` — add state-machine modules, scene transition system
+    - Update `src/docs/architecture.md` — add state machine diagram, scene layout system, tween engine
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 4.10 Create phase completion summary
+    - Create `docs/tasks/TASK-4.0-STATE-MACHINE-TRANSITIONS-COMPLETION-SUMMARY.md`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+
+---
+
+### Phase 5: Menu Codex
+
+**Status**: Not Started
+**Progress**: 0/8 tasks complete (0%)
+**Phase Started**: TBD
+**Phase Completed**: TBD
+
+- [ ] 5.0 Build the Da Vinci cryptex-style Menu Codex with spin interaction and emulator controls
+  - **Relevant Documentation:**
+    - `docs/features/steampunk-ui/design.md` - Menu Codex detail (section 10), codex options, interaction spec
+    - `CLAUDE.md` - Project overview, key conventions
+    - `docs/architecture.md` - System architecture
+    - `src/docs/CLAUDE.md` - Frontend module overview
+    - `src/docs/architecture.md` - File formats, WASM integration
+  - [ ] 5.1 Create `src/entities/menu-codex.ts` — cryptex cylinder entity
+    - Export `CodexMenuItem` interface: `{ label: string, action: string }`
+    - Export `CODEX_MENU_ITEMS` array with 8 items: Load Tape, Load ROM, Save State, Reset, Pause/Resume, Turbo Mode, Joystick Type (default: Sinclair 1), Close Menu
+    - Export `createMenuCodex(app): { codexEntity, getSelectedIndex, spinTo, setAngle }`
+    - Build procedural cylinder geometry (radius ~0.5, height ~2.5, 32 segments) with brass material
+    - Render menu text onto a 1024x512 canvas texture wrapped around the cylinder surface:
+      - Each menu item evenly spaced vertically
+      - Font: bold serif/decorative, engraved look (dark text on brass, or embossed effect)
+      - Include item numbers or decorative separators between items
+    - Add two brass end caps (flat cylinders, slightly larger radius 0.55, height 0.1)
+    - Add 3 decorative brass bands at regular intervals (thin rings, radius 0.52)
+    - Add selection arrows: two triangle entities (brass) at the cylinder's center height, pointing inward from left and right sides
+    - The codex starts disabled (`enabled = false`) and is shown/hidden by state machine transitions
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 5.2 Create `src/input/codex-interaction.ts` — spin/drag/snap handler
+    - Export `CodexInteraction` class
+    - **Drag interaction**:
+      - `onDragStart(y)`: set dragging flag, store initial Y position, reset velocity
+      - `onDragMove(y)`: calculate delta Y, update velocity (sensitivity 0.5), rotate codex entity around X-axis
+      - `onDragEnd()`: set not dragging, let inertia take over
+    - **Inertia**: `update(dt)` called each frame — if not dragging, multiply velocity by 0.95 (friction), apply to angle. When velocity < 0.1, snap to nearest item
+    - **Snap**: Round angle to nearest `360 / itemCount` multiple, tween to that angle
+    - **Selection**: `getSelectedIndex()` returns `Math.round(angle / anglePerItem) % itemCount`
+    - **Arrow key stepping**: `stepUp()` and `stepDown()` methods that animate to next/previous item
+    - **Activation**: `activate()` method returns the currently selected `CodexMenuItem`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 5.3 Replace codex placeholder in `src/scene/scene-graph.ts`
+    - Replace the Phase 4 placeholder with the full `createMenuCodex(app)` call
+    - Extend `SceneEntities` with `codexInteraction: CodexInteraction`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 5.4 Wire codex interaction into `src/input/input-bridge.ts`
+    - Add codex drag detection: on pointer down on `'menu-codex'` tagged entity, start codex drag
+    - On pointer move while dragging codex: call `codexInteraction.onDragMove(y)`
+    - On pointer up: call `codexInteraction.onDragEnd()`
+    - On tap/click without drag (distance < 5px): call `codexInteraction.activate()`, dispatch the action
+    - Add keyboard handling while in menu state:
+      - ArrowUp → `codexInteraction.stepUp()`
+      - ArrowDown → `codexInteraction.stepDown()`
+      - Enter → activate selected item
+    - Call `codexInteraction.update(dt)` from the PlayCanvas update loop
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 5.5 Wire codex actions to emulator functions
+    - In `state-machine/actions.ts` or a new `codex-actions.ts`:
+      - `LOAD_TAPE` → call `triggerFileInput()` from `ui/file-handler.ts` with `.tap,.tzx,.z80,.zip` filter
+      - `LOAD_ROM` → call `triggerFileInput()` with `.rom,.bin` filter
+      - `SAVE_STATE` → call `saveZ80()` from `media/snapshot.ts`
+      - `RESET` → call `wasm.init()` + reload cached ROM from `emulator/state.ts`
+      - `TOGGLE_PAUSE` → toggle pause state
+      - `TOGGLE_TURBO` → toggle turbo mode
+      - `CYCLE_JOYSTICK` → cycle joystick type in input-bridge (Sinclair 1 → Cursor → Kempston → Sinclair 1)
+      - `MENU_CLOSE` → send `MENU_CLOSE` to XState actor
+    - After each action (except Close), automatically dismiss the menu
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 5.6 Implement depth-of-field blur for menu scenes
+    - In `src/scene/camera-rig.ts`: implement `enableDepthOfField()` and `disableDepthOfField()`
+    - Wire to XState menu entry/exit actions
+    - If PlayCanvas post-processing is complex, use simpler fallback: reduce brightness/saturation of background entities via material tweaks when menu is open
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 5.7 Verify Phase 5 milestone
+    - Run `bun run dev` and verify:
+      - Menu button click: codex cylinder appears centered, background scene pushed back and blurred
+      - Drag on codex: cylinder spins smoothly with inertia
+      - Arrows visible at center indicating selected option
+      - Arrow keys step through options
+      - Tap/Enter activates selected option:
+        - "Load Tape" opens file picker
+        - "Save State" downloads .z80 file
+        - "Reset" resets emulator
+        - "Pause/Resume" toggles pause
+        - "Turbo Mode" toggles turbo
+        - "Joystick Type" cycles through types
+        - "Close Menu" returns to previous scene
+      - All transitions smooth
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 5.8 Create phase completion summary
+    - Create `docs/tasks/TASK-5.0-MENU-CODEX-COMPLETION-SUMMARY.md`
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+
+---
+
+### Phase 6: Polish + Cleanup
+
+**Status**: Not Started
+**Progress**: 0/8 tasks complete (0%)
+**Phase Started**: TBD
+**Phase Completed**: TBD
+
+- [ ] 6.0 Remove old UI files, fine-tune layouts, performance, and documentation
+  - **Relevant Documentation:**
+    - `docs/features/steampunk-ui/design.md` - Full feature design, removed files list
+    - `CLAUDE.md` - Project overview, version conventions
+    - `docs/architecture.md` - System architecture
+    - `docs/setup.md` - Build instructions
+    - `src/docs/CLAUDE.md` - Frontend module overview
+    - `src/docs/architecture.md` - Module relationships
+  - [ ] 6.1 Remove old UI files
+    - Delete `src/video/screen.ts` (replaced by `entities/monitor.ts`)
+    - Delete `src/video/cube.ts` (Three.js removed)
+    - Delete `src/input/vkeyboard.ts` (replaced by `entities/keyboard3d.ts` + `data/key-layout.ts`)
+    - Delete `src/input/joystick.ts` (replaced by `entities/joystick3d.ts`)
+    - Delete `src/ui/ui.ts` (replaced by `ui/file-handler.ts` + Menu Codex)
+    - Delete `src/debug/debug-view.ts` (deferred to future phase)
+    - Verify no remaining imports reference deleted files (grep for old import paths)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 6.2 Fine-tune scene layout positions
+    - Using the dev debug overlay, adjust all position/rotation/scale values in `scene-layouts.ts`
+    - Ensure Monitor and Keyboard take maximum viewport space without overlapping controls in portrait scenes
+    - Ensure joystick and fire button remain accessible and not covered
+    - Test on multiple viewport sizes (320px mobile through 1400px desktop)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 6.3 Performance profiling and optimization
+    - Profile with Chrome DevTools Performance tab
+    - Ensure 60fps on desktop and 30fps+ on mobile
+    - Optimize if needed:
+      - Reduce draw calls by batching static entities
+      - Ensure dynamic texture update is not creating garbage (reuse Uint8Array views)
+      - Check PlayCanvas LOD or culling settings
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 6.4 Version bump
+    - Bump patch version in `package.json`
+    - Bump matching version in `src/index.html` (version comment or display)
+    - Keep versions in sync per project convention
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 6.5 Update all documentation
+    - Update `CLAUDE.md` — update project structure section to reflect new file layout, update dependencies, update quick reference
+    - Update `docs/architecture.md` — rewrite frontend section for PlayCanvas, add state machine section
+    - Update `docs/setup.md` — update build instructions if changed
+    - Update `src/docs/CLAUDE.md` — complete rewrite reflecting new module structure
+    - Update `src/docs/architecture.md` — complete rewrite covering PlayCanvas scene graph, state machine, tween system, input pipeline
+    - Update `docs/features/steampunk-ui/design.md` — add "Last Updated" timestamps to any sections that changed during implementation
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 6.6 Final verification
+    - Run `bun run dev` — full end-to-end test of all features
+    - Run `bun run build` — verify production build succeeds
+    - Test verification plan items 1-11 from design doc section 15
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 6.7 Remove dev debug overlay
+    - Remove the position readout debug overlay added in Phase 1 (or make it conditional on a URL param like `?debug=1`)
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
+  - [ ] 6.8 Create phase completion summary
+    - Create `docs/tasks/TASK-6.0-POLISH-CLEANUP-COMPLETION-SUMMARY.md`
+    - Include: files removed, performance results, final verification results
+    - **Started**: TBD
+    - **Completed**: TBD
+    - **Duration**: TBD
