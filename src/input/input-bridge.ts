@@ -195,9 +195,23 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     ensureAudio();
 
     const hit = raycastFromScreen(app, camera, screenX, screenY);
+
+    // When menu is open: tap on codex interacts, tap elsewhere dismisses
+    if (menuOpen) {
+      if (hit && hit.tags.has('menu-codex')) {
+        codexDragging = true;
+        codexDragStartY = screenY;
+        codexDragMoved = false;
+        entities.codexInteraction.onDragStart(screenY);
+      } else {
+        sendScene({ type: 'MENU_CLOSE' });
+      }
+      return;
+    }
+
     if (!hit) return;
 
-    // Codex interaction (when menu is open)
+    // Codex interaction (fallback — shouldn't reach here when menu is open)
     if (hit.tags.has('menu-codex')) {
       codexDragging = true;
       codexDragStartY = screenY;
