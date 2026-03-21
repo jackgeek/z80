@@ -3,6 +3,7 @@
 // ============================================================
 import { getWasm, getMemory, isRomLoaded } from '../emulator/state.js';
 import { initAudio } from '../audio/audio.js';
+import { showStatus } from '../ui/status-bridge.js';
 
 // ============================================================
 // TZX → TAP CONVERTER
@@ -356,7 +357,7 @@ export async function loadTapeFile(data: ArrayBuffer, filename: string): Promise
   if (!wasm) return;
   initAudio();
   if (!isRomLoaded()) {
-    document.getElementById('status')!.textContent = 'Please load a ROM first!';
+    showStatus('Please load a ROM first!');
     return;
   }
 
@@ -374,24 +375,24 @@ export async function loadTapeFile(data: ArrayBuffer, filename: string): Promise
       const files = await extractZip(data);
       const entry = files.find(f => f.name.endsWith('.tap') || f.name.endsWith('.tzx'));
       if (!entry) {
-        document.getElementById('status')!.textContent = 'No .tap or .tzx file found inside ZIP.';
+        showStatus('No .tap or .tzx file found inside ZIP.');
         return;
       }
       isTzx = entry.name.endsWith('.tzx');
       if (isTzx) tzxSource = entry.data;
       tapData = isTzx ? tzxToTap(entry.data) : entry.data;
-      document.getElementById('status')!.textContent = `Loaded ${entry.name} from ZIP.`;
+      showStatus(`Loaded ${entry.name} from ZIP.`);
     } else if (name.endsWith('.tzx') || isTzxContent) {
       isTzx = true;
       tzxSource = data;
       tapData = tzxToTap(data);
-      document.getElementById('status')!.textContent = 'TZX loaded. Type LOAD "" and press Enter.';
+      showStatus('TZX loaded. Type LOAD "" and press Enter.');
     } else {
       tapData = data; // plain TAP
-      document.getElementById('status')!.textContent = 'TAP loaded. Type LOAD "" and press Enter.';
+      showStatus('TAP loaded. Type LOAD "" and press Enter.');
     }
   } catch (e) {
-    document.getElementById('status')!.textContent = 'Error loading tape: ' + (e as Error).message;
+    showStatus('Error loading tape: ' + (e as Error).message);
     console.error(e);
     return;
   }

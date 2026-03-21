@@ -9,6 +9,8 @@ import { tickEmulatorFrame } from './emulator/frame-loop.js';
 import { updateMonitorTexture } from './entities/monitor.js';
 import { getWasm, getMemory, isRunning } from './emulator/state.js';
 import { initInputBridge } from './input/input-bridge.js';
+import { setGlobalStatusFn } from './ui/status-bridge.js';
+import { initFileHandler } from './ui/file-handler.js';
 
 const FRAME_INTERVAL = 1000 / 50; // 20ms per PAL frame
 
@@ -42,11 +44,17 @@ async function main(): Promise<void> {
     }
   });
 
-  // 5. Load WASM and ROM
+  // 5. Wire global status function for media modules
+  setGlobalStatusFn(setStatusText);
+
+  // 6. Load WASM and ROM
   await initWasm(setStatusText);
 
-  // 6. Initialize input system (physical keyboard + 3D entity click/touch)
+  // 7. Initialize input system (physical keyboard + 3D entity click/touch)
   initInputBridge(app, entities);
+
+  // 8. Initialize file handling (drag-drop + hidden file input)
+  initFileHandler();
 }
 
 main().catch(console.error);

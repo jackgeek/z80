@@ -3,6 +3,9 @@
 import * as pc from 'playcanvas';
 import { createMonitor, type MonitorResult } from '../entities/monitor.js';
 import { createKeyboard3D, type Keyboard3DResult } from '../entities/keyboard3d.js';
+import { createJoystick3D, type Joystick3DResult } from '../entities/joystick3d.js';
+import { createFireButton, type FireButtonResult } from '../entities/fire-button.js';
+import { createMenuButton, type MenuButtonResult } from '../entities/menu-button.js';
 
 export interface SceneEntities {
   camera: pc.Entity;
@@ -11,6 +14,11 @@ export interface SceneEntities {
   screenTexture: pc.Texture;
   keyboard: pc.Entity;
   keys: Map<string, pc.Entity>;
+  joystick: pc.Entity;
+  joystickStick: pc.Entity;
+  fireButton: pc.Entity;
+  fireButtonCap: pc.Entity;
+  menuButton: pc.Entity;
 }
 
 export function buildSceneGraph(app: pc.Application): SceneEntities {
@@ -30,7 +38,6 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   // ── Lighting ──────────────────────────────────────────────────────────────
   const lighting = new pc.Entity('Lighting');
 
-  // Key light — warm directional from top-right
   const keyLight = new pc.Entity('KeyLight');
   keyLight.addComponent('light', {
     type: 'directional',
@@ -41,7 +48,6 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   keyLight.setLocalEulerAngles(45, 30, 0);
   lighting.addChild(keyLight);
 
-  // Fill light — cool blue from bottom-left
   const fillLight = new pc.Entity('FillLight');
   fillLight.addComponent('light', {
     type: 'directional',
@@ -52,7 +58,6 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   fillLight.setLocalEulerAngles(-30, -45, 0);
   lighting.addChild(fillLight);
 
-  // Rim light — amber point light behind/above scene
   const rimLight = new pc.Entity('RimLight');
   rimLight.addComponent('light', {
     type: 'point',
@@ -77,6 +82,24 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   kbResult.keyboardEntity.setLocalScale(0.65, 0.65, 0.65);
   app.root.addChild(kbResult.keyboardEntity);
 
+  // ── Joystick ──────────────────────────────────────────────────────────────
+  const joyResult: Joystick3DResult = createJoystick3D(app);
+  joyResult.joystickEntity.setLocalPosition(-2.2, -2.8, 0);
+  joyResult.joystickEntity.setLocalScale(0.6, 0.6, 0.6);
+  app.root.addChild(joyResult.joystickEntity);
+
+  // ── Fire Button ───────────────────────────────────────────────────────────
+  const fireResult: FireButtonResult = createFireButton(app);
+  fireResult.fireEntity.setLocalPosition(2.2, -2.8, 0);
+  fireResult.fireEntity.setLocalScale(0.6, 0.6, 0.6);
+  app.root.addChild(fireResult.fireEntity);
+
+  // ── Menu Button ───────────────────────────────────────────────────────────
+  const menuResult: MenuButtonResult = createMenuButton(app);
+  menuResult.menuButtonEntity.setLocalPosition(0, -2.8, 0);
+  menuResult.menuButtonEntity.setLocalScale(0.6, 0.6, 0.6);
+  app.root.addChild(menuResult.menuButtonEntity);
+
   return {
     camera,
     monitor: monitorResult.monitorEntity,
@@ -84,5 +107,10 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
     screenTexture: monitorResult.screenTexture,
     keyboard: kbResult.keyboardEntity,
     keys: kbResult.keys,
+    joystick: joyResult.joystickEntity,
+    joystickStick: joyResult.joystickStick,
+    fireButton: fireResult.fireEntity,
+    fireButtonCap: fireResult.fireButtonCap,
+    menuButton: menuResult.menuButtonEntity,
   };
 }

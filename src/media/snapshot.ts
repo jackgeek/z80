@@ -1,4 +1,5 @@
 import { getWasm, getMemory, MEM_BASE, getCachedRomData, setRunning, setRomLoaded, setPaused, isRomLoaded } from '../emulator/state.js';
+import { showStatus } from '../ui/status-bridge.js';
 
 // ED ED RLE compression for .z80 format
 export function compressZ80Page(data: Uint8Array): Uint8Array {
@@ -141,7 +142,7 @@ export function saveZ80(): void {
   document.body.removeChild(a_el);
   URL.revokeObjectURL(url);
 
-  document.getElementById('status')!.textContent = 'Snapshot saved.';
+  showStatus('Snapshot saved.');
 }
 
 // Load .z80 snapshot file (v1, v2, v3)
@@ -260,6 +261,5 @@ export function loadZ80(arrayBuffer: ArrayBuffer): void {
   setRunning(true);
   setRomLoaded(true);
   setPaused(false);
-  document.getElementById('pause-btn')!.textContent = 'Pause';
-  document.getElementById('status')!.textContent = 'Snapshot loaded.';
+  showStatus('Snapshot loaded.');
 }

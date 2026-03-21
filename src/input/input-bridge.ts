@@ -19,6 +19,26 @@ function ensureAudio(): void {
 let capsLatched = false;
 let symLatched = false;
 
+// Joystick state
+export type JoystickType = 'sinclair1' | 'cursor' | 'kempston';
+let joystickType: JoystickType = 'sinclair1';
+let joystickActive = false;
+let firePressed = false;
+
+const JOYSTICK_FIRE: Record<JoystickType, { row: number; bit: number }> = {
+  sinclair1: { row: 4, bit: 0x01 }, // 0
+  cursor:    { row: 4, bit: 0x01 }, // 0
+  kempston:  { row: 4, bit: 0x01 }, // placeholder — kempston uses port
+};
+
+export function setJoystickType(type: JoystickType): void {
+  joystickType = type;
+}
+
+export function getJoystickType(): JoystickType {
+  return joystickType;
+}
+
 export function initInputBridge(app: pc.Application, entities: SceneEntities): void {
   // ── Physical keyboard input ─────────────────────────────────────────────
   window.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -81,6 +101,27 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     const hit = raycastFromScreen(app, camera, screenX, screenY);
     if (!hit) return;
 
+    // Fire button press
+    if (hit.tags.has('fire-button')) {
+      const fireKey = JOYSTICK_FIRE[joystickType];
+      wasm.keyDown(fireKey.row, fireKey.bit);
+      firePressed = true;
+      animateKeyPress(entities.fireButtonCap, true);
+      return;
+    }
+
+    // Menu button press
+    if (hit.tags.has('menu-button')) {
+      console.log('Menu button pressed — state machine not yet wired');
+      return;
+    }
+
+    // Joystick press
+    if (hit.tags.has('joystick')) {
+      joystickActive = true;
+      return;
+    }
+
     // Spectrum key press
     if (hit.tags.has('spectrum-key')) {
       const row = (hit as any)._specRow as number;
@@ -108,9 +149,20 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     }
   }
 
-  function handlePointerUp(screenX: number, screenY: number): void {
+  function handlePointerUp(_screenX: number, _screenY: number): void {
     const wasm = getWasm();
     if (!wasm) return;
+
+    // Release fire button
+    if (firePressed) {
+      const fireKey = JOYSTICK_FIRE[joystickType];
+      wasm.keyUp(fireKey.row, fireKey.bit);
+      firePressed = false;
+      animateKeyPress(entities.fireButtonCap, false);
+    }
+
+    // Release joystick
+    joystickActive = false;
 
     // Release all pressed non-sticky keys
     for (const name of pressedKeys) {
@@ -168,21 +220,23 @@ function raycastFromScreen(
   cam.screenToWorld(screenX, screenY, cam.nearClip, from);
   cam.screenToWorld(screenX, screenY, cam.farClip, to);
 
-  // Manual ray-entity intersection against all spectrum-key entities
+  // Manual ray-entity intersection against all interactive entities
   const ray = new pc.Ray(from, to.sub(from).normalize());
   let closestEntity: pc.Entity | null = null;
   let closestDist = Infinity;
 
-  const keyEntities = app.root.findByTag('spectrum-key') as pc.Entity[];
-  for (const entity of keyEntities) {
-    if (!entity.collision) continue;
-    const aabb = getEntityAABB(entity);
-    const hit = new pc.Vec3();
-    if (aabb.intersectsRay(ray, hit)) {
-      const dist = from.distance(hit);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestEntity = entity;
+  const tags = ['spectrum-key', 'fire-button', 'menu-button', 'joystick'];
+  for (const tag of tags) {
+    const tagEntities = app.root.findByTag(tag) as pc.Entity[];
+    for (const entity of tagEntities) {
+      const aabb = getEntityAABB(entity);
+      const hitPoint = new pc.Vec3();
+      if (aabb.intersectsRay(ray, hitPoint)) {
+        const dist = from.distance(hitPoint);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestEntity = entity;
+        }
       }
     }
   }
