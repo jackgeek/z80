@@ -19,6 +19,9 @@ export interface SceneLayout {
 
 // All entities face the camera directly — no tilt
 const FLAT: [number, number, number] = [0, 0, 0];
+// Keyboard tilt toward viewport center: bottom-edge forward when above center, top-edge forward when below
+const KB_TILT_UP: [number, number, number]   = [-12, 0, 0]; // keyboard above center → bottom tilts toward camera
+const KB_TILT_DOWN: [number, number, number] = [ 12, 0, 0]; // keyboard below center → top tilts toward camera
 
 // ── Frustum helpers ───────────────────────────────────────────────────────────
 
@@ -40,10 +43,11 @@ const MARGIN = 0.08;
 
 // Monitor world-space width at scale 1 (BORDER_W + bezels ≈ 3.08)
 const MONITOR_UNIT_W = 3.08;
-// Keyboard world-space width at scale 1 (10*0.33 + 0.4 ≈ 3.7)
-const KB_UNIT_W = 3.7;
-// Keyboard depth when tilted (approximate visual height in screen-space)
-const FLATED_H = 0.8; // world units at scale 1
+// Keyboard world-space width at entity scale 1 — GLB model has internal 13.2× scale,
+// so effective width = 0.233 × 13.2 = 3.076 (matches monitor width)
+const KB_UNIT_W = 3.076;
+// Keyboard visual height at entity scale 1 — model Z extent 0.146 × 13.2 = 1.927
+const FLATED_H = 1.927;
 
 // ── Layout computation ────────────────────────────────────────────────────────
 
@@ -81,14 +85,11 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
   switch (sceneName) {
     case 'portrait1': {
       // Layout from bottom up: controls → monitor → keyboard
-      // Push everything toward bottom to maximize size
-      const ctrlY = bottom + ctrlRowH * 0.4;
-      const monBottom = ctrlY + ctrlRowH * 0.6;
-      const monY = monBottom + monVisualH * 0.45;
-      const kbBottom = monY + monVisualH * 0.5 + 0.1;
-      const kbY = kbBottom + kbVisualH * 0.3;
+      const ctrlY = bottom + ctrlRowH * 0.5;
+      const monY = ctrlY + ctrlRowH * 0.5 + 0.1 + monVisualH * 0.5;
+      const kbY = monY + monVisualH * 0.5 + 0.1 + kbVisualH * 0.5;
       return {
-        keyboard:   { position: [0, kbY, 0],             rotation: FLAT,   scale: ks, visible: true },
+        keyboard:   { position: [0, kbY, 0],             rotation: KB_TILT_DOWN,   scale: ks, visible: true },
         monitor:    { position: [0, monY, 0],            rotation: [0, 0, 0], scale: ms, visible: true },
         joystick:   { position: [left, ctrlY, 0],         rotation: FLAT, scale: cs, visible: true },
         fireButton: { position: [right, ctrlY, 0.4],     rotation: FLAT, scale: cs, visible: true },
@@ -99,14 +100,12 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
     }
     case 'portrait2': {
       // Layout from bottom up: controls → keyboard → monitor
-      const ctrlY = bottom + ctrlRowH * 0.4;
-      const kbBottom = ctrlY + ctrlRowH * 0.6;
-      const kbY = kbBottom + kbVisualH * 0.3;
-      const monBottom = kbY + kbVisualH * 0.7 + 0.1;
-      const monY = monBottom + monVisualH * 0.45;
+      const ctrlY = bottom + ctrlRowH * 0.5;
+      const kbY = ctrlY + ctrlRowH * 0.5 + 0.1 + kbVisualH * 0.5;
+      const monY = kbY + kbVisualH * 0.5 + 0.1 + monVisualH * 0.5;
       return {
         monitor:    { position: [0, monY, 0],            rotation: [0, 0, 0], scale: ms, visible: true },
-        keyboard:   { position: [0, kbY, 0.5],           rotation: FLAT,   scale: ks, visible: true },
+        keyboard:   { position: [0, kbY, 0.5],           rotation: KB_TILT_UP,   scale: ks, visible: true },
         joystick:   { position: [left, ctrlY, 0],         rotation: FLAT, scale: cs, visible: true },
         fireButton: { position: [right, ctrlY, 0.4],     rotation: FLAT, scale: cs, visible: true },
         menuButton: { position: [0, ctrlY, 0.4],         rotation: FLAT, scale: cs, visible: true },

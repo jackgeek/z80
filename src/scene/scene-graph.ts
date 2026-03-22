@@ -1,13 +1,28 @@
 // Scene graph builder — creates camera, lights, and all 3D entities
 
-import * as pc from 'playcanvas';
-import { createMonitor, type MonitorResult } from '../entities/monitor.js';
-import { createKeyboard3D, type Keyboard3DResult } from '../entities/keyboard3d.js';
-import { createJoystick3D, type Joystick3DResult } from '../entities/joystick3d.js';
-import { createFireButton, type FireButtonResult } from '../entities/fire-button.js';
-import { createMenuButton, type MenuButtonResult } from '../entities/menu-button.js';
-import { createMenuCodex, type MenuCodexResult } from '../entities/menu-codex.js';
-import { CodexInteraction } from '../input/codex-interaction.js';
+import * as pc from "playcanvas";
+import { createMonitor, type MonitorResult } from "../entities/monitor.js";
+import {
+  createKeyboard3D,
+  type Keyboard3DResult,
+} from "../entities/keyboard3d.js";
+import {
+  createJoystick3D,
+  type Joystick3DResult,
+} from "../entities/joystick3d.js";
+import {
+  createFireButton,
+  type FireButtonResult,
+} from "../entities/fire-button.js";
+import {
+  createMenuButton,
+  type MenuButtonResult,
+} from "../entities/menu-button.js";
+import {
+  createMenuCodex,
+  type MenuCodexResult,
+} from "../entities/menu-codex.js";
+import { CodexInteraction } from "../input/codex-interaction.js";
 
 export interface SceneEntities {
   camera: pc.Entity;
@@ -28,9 +43,9 @@ export interface SceneEntities {
 
 export function buildSceneGraph(app: pc.Application): SceneEntities {
   // ── Camera ────────────────────────────────────────────────────────────────
-  const cameraRig = new pc.Entity('CameraRig');
-  const camera = new pc.Entity('MainCamera');
-  camera.addComponent('camera', {
+  const cameraRig = new pc.Entity("CameraRig");
+  const camera = new pc.Entity("MainCamera");
+  camera.addComponent("camera", {
     fov: 45,
     nearClip: 0.1,
     farClip: 100,
@@ -41,12 +56,12 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   app.root.addChild(cameraRig);
 
   // ── Lighting ──────────────────────────────────────────────────────────────
-  const lighting = new pc.Entity('Lighting');
+  const lighting = new pc.Entity("Lighting");
 
   // Key light — warm directional from top-front-right
-  const keyLight = new pc.Entity('KeyLight');
-  keyLight.addComponent('light', {
-    type: 'directional',
+  const keyLight = new pc.Entity("KeyLight");
+  keyLight.addComponent("light", {
+    type: "directional",
     color: new pc.Color(1.0, 0.95, 0.85),
     intensity: 1.2,
     castShadows: false,
@@ -55,9 +70,9 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   lighting.addChild(keyLight);
 
   // Fill light — cool from left to soften shadows
-  const fillLight = new pc.Entity('FillLight');
-  fillLight.addComponent('light', {
-    type: 'directional',
+  const fillLight = new pc.Entity("FillLight");
+  fillLight.addComponent("light", {
+    type: "directional",
     color: new pc.Color(0.7, 0.75, 1.0),
     intensity: 0.5,
     castShadows: false,
@@ -66,9 +81,9 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   lighting.addChild(fillLight);
 
   // Rim light — amber accent from behind/above
-  const rimLight = new pc.Entity('RimLight');
-  rimLight.addComponent('light', {
-    type: 'point',
+  const rimLight = new pc.Entity("RimLight");
+  rimLight.addComponent("light", {
+    type: "point",
     color: new pc.Color(1.0, 0.85, 0.5),
     intensity: 0.8,
     range: 25,
@@ -76,6 +91,19 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   });
   rimLight.setLocalPosition(0, 4, -3);
   lighting.addChild(rimLight);
+
+  // Keyboard fill light — point light behind and slightly above the camera,
+  // offset left to give some depth, shines forward onto the keyboard face
+  const kbLight = new pc.Entity("KeyboardLight");
+  kbLight.addComponent("light", {
+    type: "point",
+    color: new pc.Color(1.0, 1.0, 0.95),
+    intensity: 1.5,
+    range: 20,
+    castShadows: false,
+  });
+  kbLight.setLocalPosition(-5, 0, 15);
+  lighting.addChild(kbLight);
 
   app.root.addChild(lighting);
 
@@ -85,10 +113,10 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   app.root.addChild(monitorResult.monitorEntity);
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
-  // Tilt keyboard toward camera so key faces are visible and clickable
+  // GLB lies flat (XZ plane, surface +Y). Rotate +90° on X so the +Y surface
+  // maps to +Z (toward camera), giving a top-down view. Scale to monitor width.
   const kbResult: Keyboard3DResult = createKeyboard3D(app);
   kbResult.keyboardEntity.setLocalPosition(0, -1.6, 0);
-  kbResult.keyboardEntity.setLocalScale(0.65, 0.65, 0.65);
   app.root.addChild(kbResult.keyboardEntity);
 
   // ── Joystick ──────────────────────────────────────────────────────────────

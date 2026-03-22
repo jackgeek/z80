@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls c:/git/personal/z80/src/*.js)"
+      "Bash(ls c:/git/personal/z80/src/*.js)",
+      "Bash(node -e \":*)"
     ]
   }
 }
