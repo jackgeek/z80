@@ -2,6 +2,7 @@
 
 import * as pc from 'playcanvas';
 import { KEY_MAP, COMPOUND_KEYS } from './keyboard.js';
+import { ROW_BIT_TO_KEY_INDEX } from '../data/key-layout.js';
 import { getWasm, isRunning, isPaused, setPaused, isTurboMode, setTurboMode } from '../emulator/state.js';
 import { initAudio } from '../audio/audio.js';
 import { resetEmulator } from '../emulator/wasm-loader.js';
@@ -151,7 +152,11 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     const compound = COMPOUND_KEYS[e.code];
     if (compound) {
       e.preventDefault();
-      for (const k of compound) wasm.keyDown(k.row, k.bit);
+      for (const k of compound) {
+        wasm.keyDown(k.row, k.bit);
+        const idx = ROW_BIT_TO_KEY_INDEX[`${k.row},${k.bit}`];
+        if (idx !== undefined) entities.pressKey3D(idx, true);
+      }
       return;
     }
 
@@ -159,6 +164,8 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     if (mapping) {
       e.preventDefault();
       wasm.keyDown(mapping.row, mapping.bit);
+      const idx = ROW_BIT_TO_KEY_INDEX[`${mapping.row},${mapping.bit}`];
+      if (idx !== undefined) entities.pressKey3D(idx, true);
     }
   });
 
@@ -172,7 +179,11 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     const compound = COMPOUND_KEYS[e.code];
     if (compound) {
       e.preventDefault();
-      for (const k of compound) wasm.keyUp(k.row, k.bit);
+      for (const k of compound) {
+        wasm.keyUp(k.row, k.bit);
+        const idx = ROW_BIT_TO_KEY_INDEX[`${k.row},${k.bit}`];
+        if (idx !== undefined) entities.pressKey3D(idx, false);
+      }
       return;
     }
 
@@ -180,6 +191,8 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     if (mapping) {
       e.preventDefault();
       wasm.keyUp(mapping.row, mapping.bit);
+      const idx = ROW_BIT_TO_KEY_INDEX[`${mapping.row},${mapping.bit}`];
+      if (idx !== undefined) entities.pressKey3D(idx, false);
     }
   });
 

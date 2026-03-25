@@ -32,6 +32,7 @@ export interface SceneEntities {
   borderMaterial: pc.StandardMaterial;
   keyboard: pc.Entity;
   keys: Map<string, pc.Entity>;
+  pressKey3D: (index: number, down: boolean) => void;
   joystick: pc.Entity;
   joystickStick: pc.Entity;
   fireButton: pc.Entity;
@@ -151,6 +152,7 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
     borderMaterial: monitorResult.borderMaterial,
     keyboard: kbResult.keyboardEntity,
     keys: kbResult.keys,
+    pressKey3D: kbResult.pressKey,
     joystick: joyResult.joystickEntity,
     joystickStick: joyResult.joystickStick,
     fireButton: fireResult.fireEntity,

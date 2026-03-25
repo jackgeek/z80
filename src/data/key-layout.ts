@@ -64,3 +64,12 @@ export const ROWS: VKeyDef[][] = [
     { label:'BREAK\nSPACE', row:7, bit:0x01, wide:2.2 },
   ],
 ];
+
+// Maps spectrum matrix (row, bit) → key index 0–39 in the 3D keyboard model.
+// Keys are ordered left-to-right, top-to-bottom matching ROWS above.
+export const ROW_BIT_TO_KEY_INDEX: Record<string, number> = {};
+ROWS.forEach((row, rowIdx) => {
+  row.forEach((key, colIdx) => {
+    ROW_BIT_TO_KEY_INDEX[`${key.row},${key.bit}`] = rowIdx * 10 + colIdx;
+  });
+});
