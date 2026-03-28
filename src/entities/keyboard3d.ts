@@ -9,7 +9,7 @@ export interface Keyboard3DResult {
   pressKey: (index: number, down: boolean) => void;
 }
 
-const KEY_PRESS_OFFSET = 0.001; // local-space Y offset when a key is pressed
+const KEY_PRESS_OFFSET = 0.005; // local-space Y offset when a key is pressed
 
 // Flat ordered list matching GLB indices 0–39 (top-left → bottom-right)
 const KEY_DEFS = ROWS.flat();

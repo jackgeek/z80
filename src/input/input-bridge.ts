@@ -203,6 +203,51 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   // Track which keys are currently pressed (by entity name)
   const pressedKeys = new Set<string>();
 
+  // Currently held spectrum key (pressed on pointerDown, released on move/up)
+  let heldSpectrumKey: { row: number; bit: number; keyIndex: number | undefined } | null = null;
+
+  function releaseHeldKey(): void {
+    if (!heldSpectrumKey) return;
+    const wasm = getWasm();
+    if (wasm) {
+      wasm.keyUp(heldSpectrumKey.row, heldSpectrumKey.bit);
+      if (heldSpectrumKey.keyIndex !== undefined) {
+        entities.pressKey3D(heldSpectrumKey.keyIndex, false);
+      }
+    }
+    heldSpectrumKey = null;
+  }
+
+  function pressSpectrumKey(screenX: number, screenY: number): void {
+    const wasm = getWasm();
+    if (!wasm || !isRunning()) return;
+    ensureAudio();
+    const hit = raycastFromScreen(app, camera, screenX, screenY);
+    if (!hit?.tags.has('spectrum-key')) return;
+
+    const row = (hit as any)._specRow as number;
+    const bit = (hit as any)._specBit as number;
+    const sticky = (hit as any)._sticky as boolean;
+    const label = (hit as any)._label as string;
+    const keyIndex = (hit as any)._specKeyIndex as number | undefined;
+
+    if (sticky) {
+      if (label.startsWith('CAPS')) {
+        capsLatched = !capsLatched;
+        if (capsLatched) wasm.keyDown(row, bit); else wasm.keyUp(row, bit);
+        if (keyIndex !== undefined) entities.pressKey3D(keyIndex, capsLatched);
+      } else if (label.startsWith('SYM')) {
+        symLatched = !symLatched;
+        if (symLatched) wasm.keyDown(row, bit); else wasm.keyUp(row, bit);
+        if (keyIndex !== undefined) entities.pressKey3D(keyIndex, symLatched);
+      }
+    } else {
+      wasm.keyDown(row, bit);
+      if (keyIndex !== undefined) entities.pressKey3D(keyIndex, true);
+      heldSpectrumKey = { row, bit, keyIndex };
+    }
+  }
+
   function handlePointerDown(screenX: number, screenY: number): void {
     const wasm = getWasm();
     if (!wasm || !isRunning()) return;
@@ -225,7 +270,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
     if (!hit) return;
 
-    // Codex interaction (fallback — shouldn't reach here when menu is open)
     if (hit.tags.has('menu-codex')) {
       codexDragging = true;
       codexDragStartY = screenY;
@@ -234,7 +278,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       return;
     }
 
-    // Fire button press
     if (hit.tags.has('fire-button')) {
       const fireKey = JOYSTICK_FIRE[joystickType];
       wasm.keyDown(fireKey.row, fireKey.bit);
@@ -243,49 +286,16 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       return;
     }
 
-    // Menu button press
     if (hit.tags.has('menu-button')) {
       sendScene({ type: 'MENU_OPEN' });
       return;
     }
 
-    // Joystick press
     if (hit.tags.has('joystick')) {
       joystickActive = true;
       return;
     }
-
-    // Spectrum key press
-    if (hit.tags.has('spectrum-key')) {
-      const row = (hit as any)._specRow as number;
-      const bit = (hit as any)._specBit as number;
-      const sticky = (hit as any)._sticky as boolean;
-      const label = (hit as any)._label as string;
-      const keyIndex = (hit as any)._specKeyIndex as number | undefined;
-
-      if (sticky) {
-        // Toggle sticky modifier
-        if (label.startsWith('CAPS')) {
-          capsLatched = !capsLatched;
-          if (capsLatched) wasm.keyDown(row, bit);
-          else wasm.keyUp(row, bit);
-          if (keyIndex !== undefined) entities.pressKey3D(keyIndex, capsLatched);
-        } else if (label.startsWith('SYM')) {
-          symLatched = !symLatched;
-          if (symLatched) wasm.keyDown(row, bit);
-          else wasm.keyUp(row, bit);
-          if (keyIndex !== undefined) entities.pressKey3D(keyIndex, symLatched);
-        }
-      } else {
-        wasm.keyDown(row, bit);
-        pressedKeys.add(hit.name);
-        if (keyIndex !== undefined) {
-          entities.pressKey3D(keyIndex, true);
-        } else {
-          animateKeyPress(hit, true);
-        }
-      }
-    }
+    // spectrum-key handled immediately in pointerDown via pressSpectrumKey
   }
 
   function handlePointerUp(_screenX: number, _screenY: number): void {
@@ -348,13 +358,24 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     const viewportH = canvas.clientHeight || canvas.height;
     gestureDetector.beginTracking(screenY, viewportH);
 
-    // Only handle non-deferrable actions immediately (menu dismiss, codex start)
     if (menuOpen) {
       handlePointerDown(screenX, screenY);
+      return;
     }
+    // Immediately press any spectrum key under the pointer
+    pressSpectrumKey(screenX, screenY);
   }
 
   function pointerMove(screenX: number, screenY: number): void {
+    // Release held spectrum key if pointer moves away (>8px threshold)
+    if (heldSpectrumKey) {
+      const dx = screenX - pendingDownX;
+      const dy = screenY - pendingDownY;
+      if (dx * dx + dy * dy > 64) {
+        releaseHeldKey();
+      }
+    }
+
     // Codex drag
     if (codexDragging) {
       codexDragMoved = true;
@@ -376,6 +397,9 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   }
 
   function pointerUp(_screenX: number, screenY: number): void {
+    // Release any held spectrum key
+    releaseHeldKey();
+
     // Codex drag end
     if (codexDragging) {
       codexDragging = false;
@@ -406,12 +430,11 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     }
 
     // Process deferred key/button press.
-    // keyUp is delayed by two frames so the emulator (50Hz) sees the key as pressed
-    // for at least one tick before it is released.
+    // keyUp is delayed so the emulator sees the press and the animation is visible.
     handlePointerDown(pendingDownX, pendingDownY);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTimeout(() => {
       handlePointerUp(pendingDownX, pendingDownY);
-    }));
+    }, 120);
   }
 
   // Mouse events
@@ -467,9 +490,10 @@ function raycastFromScreen(
   let closestEntity: pc.Entity | null = null;
   let closestDist = Infinity;
 
-  // Spectrum keys: point-to-ray distance test against world position.
-  // The Key.Caps.N nodes may be transform-only (no mesh), making AABB unreliable.
-  const KEY_HIT_RADIUS = 0.55; // world units — roughly half a key width
+  // Spectrum keys: find the key whose world-space center is closest to the ray.
+  // Keys are ~0.38 world units apart; we accept hits within 0.3 units of the ray.
+  const KEY_HIT_RADIUS = 0.3;
+  let closestPerpDist = KEY_HIT_RADIUS;
   const spectrumKeys = app.root.findByTag('spectrum-key') as pc.Entity[];
   for (const entity of spectrumKeys) {
     const pos = entity.getPosition();
@@ -478,7 +502,8 @@ function raycastFromScreen(
     if (proj <= 0) continue; // behind camera
     const closestPoint = new pc.Vec3().copy(ray.direction).mulScalar(proj).add(from);
     const perpDist = pos.distance(closestPoint);
-    if (perpDist < KEY_HIT_RADIUS && proj < closestDist) {
+    if (perpDist < closestPerpDist) {
+      closestPerpDist = perpDist;
       closestDist = proj;
       closestEntity = entity;
     }
