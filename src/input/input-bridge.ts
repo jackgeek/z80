@@ -261,6 +261,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       const bit = (hit as any)._specBit as number;
       const sticky = (hit as any)._sticky as boolean;
       const label = (hit as any)._label as string;
+      const keyIndex = (hit as any)._specKeyIndex as number | undefined;
 
       if (sticky) {
         // Toggle sticky modifier
@@ -268,16 +269,21 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
           capsLatched = !capsLatched;
           if (capsLatched) wasm.keyDown(row, bit);
           else wasm.keyUp(row, bit);
+          if (keyIndex !== undefined) entities.pressKey3D(keyIndex, capsLatched);
         } else if (label.startsWith('SYM')) {
           symLatched = !symLatched;
           if (symLatched) wasm.keyDown(row, bit);
           else wasm.keyUp(row, bit);
+          if (keyIndex !== undefined) entities.pressKey3D(keyIndex, symLatched);
         }
       } else {
         wasm.keyDown(row, bit);
         pressedKeys.add(hit.name);
-        // Animate key press
-        animateKeyPress(hit, true);
+        if (keyIndex !== undefined) {
+          entities.pressKey3D(keyIndex, true);
+        } else {
+          animateKeyPress(hit, true);
+        }
       }
     }
   }
@@ -303,8 +309,13 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       if (entity && entity.tags.has('spectrum-key')) {
         const row = (entity as any)._specRow as number;
         const bit = (entity as any)._specBit as number;
+        const keyIndex = (entity as any)._specKeyIndex as number | undefined;
         wasm.keyUp(row, bit);
-        animateKeyPress(entity, false);
+        if (keyIndex !== undefined) {
+          entities.pressKey3D(keyIndex, false);
+        } else {
+          animateKeyPress(entity, false);
+        }
       }
     }
     pressedKeys.clear();
@@ -378,29 +389,29 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
     // Scene drag end — commit or cancel
     const result = gestureDetector.endTracking(screenY);
-    if (sceneDragging && result) {
+    if (sceneDragging) {
       sceneDragging = false;
-      const target = getSwipeTarget(result.direction);
-      if (result.commit && target) {
-        // Commit: send SWIPE to state machine (which will tween to final position)
+      const target = result && getSwipeTarget(result.direction);
+      if (result?.commit && target) {
+        // Committed swipe — transition scene and stop (don't also fire key press)
         sendScene({ type: 'SWIPE', direction: result.direction });
-      } else {
-        // Cancel: snap back to current scene
-        sendScene({ type: 'SWIPE_CANCEL' });
-        // Re-transition to current scene to animate back
-        const current = getCurrentScene();
-        if (sceneActor) {
-          transitionToScene(current, entities);
-        }
+        return;
       }
-      return;
+      // Cancelled swipe — snap back, then fall through to process as a tap
+      sendScene({ type: 'SWIPE_CANCEL' });
+      const current = getCurrentScene();
+      if (sceneActor) {
+        transitionToScene(current, entities);
+      }
     }
 
-    // Normal pointer up (no significant drag) — process deferred key/button press
-    sceneDragging = false;
-    gestureDetector.endTracking(screenY); // clear tracking state
+    // Process deferred key/button press.
+    // keyUp is delayed by two frames so the emulator (50Hz) sees the key as pressed
+    // for at least one tick before it is released.
     handlePointerDown(pendingDownX, pendingDownY);
-    handlePointerUp(pendingDownX, pendingDownY);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      handlePointerUp(pendingDownX, pendingDownY);
+    }));
   }
 
   // Mouse events
@@ -456,8 +467,26 @@ function raycastFromScreen(
   let closestEntity: pc.Entity | null = null;
   let closestDist = Infinity;
 
-  const tags = ['spectrum-key', 'fire-button', 'menu-button', 'joystick', 'menu-codex'];
-  for (const tag of tags) {
+  // Spectrum keys: point-to-ray distance test against world position.
+  // The Key.Caps.N nodes may be transform-only (no mesh), making AABB unreliable.
+  const KEY_HIT_RADIUS = 0.55; // world units — roughly half a key width
+  const spectrumKeys = app.root.findByTag('spectrum-key') as pc.Entity[];
+  for (const entity of spectrumKeys) {
+    const pos = entity.getPosition();
+    const toPos = new pc.Vec3().sub2(pos, from);
+    const proj = toPos.dot(ray.direction);
+    if (proj <= 0) continue; // behind camera
+    const closestPoint = new pc.Vec3().copy(ray.direction).mulScalar(proj).add(from);
+    const perpDist = pos.distance(closestPoint);
+    if (perpDist < KEY_HIT_RADIUS && proj < closestDist) {
+      closestDist = proj;
+      closestEntity = entity;
+    }
+  }
+
+  // Other interactive entities: AABB test
+  const otherTags = ['fire-button', 'menu-button', 'joystick', 'menu-codex'];
+  for (const tag of otherTags) {
     const tagEntities = app.root.findByTag(tag) as pc.Entity[];
     for (const entity of tagEntities) {
       const aabb = getEntityAABB(entity);
@@ -476,9 +505,21 @@ function raycastFromScreen(
 }
 
 function getEntityAABB(entity: pc.Entity): pc.BoundingBox {
+  // For GLB key entities: derive world AABB from mesh local AABB + full world transform
+  const render = entity.render;
+  if (render && render.meshInstances.length > 0) {
+    const mesh = render.meshInstances[0].mesh;
+    if (mesh) {
+      const worldAabb = new pc.BoundingBox();
+      worldAabb.setFromTransformedAabb(mesh.aabb, entity.getWorldTransform());
+      // Expand slightly so thin key caps are easier to tap
+      worldAabb.halfExtents.add(new pc.Vec3(0.05, 0.05, 0.1));
+      return worldAabb;
+    }
+  }
+  // Fallback for procedural entities (fire button, joystick, etc.)
   const pos = entity.getPosition();
   const scale = entity.getLocalScale();
-  // Account for parent scale
   const parent = entity.parent;
   const parentScale = parent ? parent.getLocalScale() : new pc.Vec3(1, 1, 1);
   const halfExtents = new pc.Vec3(

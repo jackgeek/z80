@@ -1,6 +1,7 @@
 // 3D ZX Spectrum keyboard — loaded from GLB model
 
 import * as pc from "playcanvas";
+import { ROWS } from "../data/key-layout.js";
 
 export interface Keyboard3DResult {
   keyboardEntity: pc.Entity;
@@ -9,6 +10,9 @@ export interface Keyboard3DResult {
 }
 
 const KEY_PRESS_OFFSET = 0.001; // local-space Y offset when a key is pressed
+
+// Flat ordered list matching GLB indices 0–39 (top-left → bottom-right)
+const KEY_DEFS = ROWS.flat();
 
 export function createKeyboard3D(app: pc.Application): Keyboard3DResult {
   const keyboard = new pc.Entity("Keyboard3D");
@@ -36,6 +40,17 @@ export function createKeyboard3D(app: pc.Application): Keyboard3DResult {
       if (keyEntity) {
         keys.set(String(i), keyEntity);
         restPositions.set(String(i), keyEntity.getLocalPosition().clone());
+
+        // Tag for raycasting and store spectrum matrix data
+        keyEntity.tags.add("spectrum-key");
+        const def = KEY_DEFS[i];
+        if (def) {
+          (keyEntity as any)._specRow = def.row;
+          (keyEntity as any)._specBit = def.bit;
+          (keyEntity as any)._sticky = def.sticky ?? false;
+          (keyEntity as any)._label = def.label;
+          (keyEntity as any)._specKeyIndex = i;
+        }
       }
     }
   });
