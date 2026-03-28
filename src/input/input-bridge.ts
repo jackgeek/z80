@@ -171,7 +171,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
   window.addEventListener('keyup', (e: KeyboardEvent) => {
     const wasm = getWasm();
-    if (!wasm || !isRunning()) return;
+    if (!wasm) return;
 
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -194,6 +194,31 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       const idx = ROW_BIT_TO_KEY_INDEX[`${mapping.row},${mapping.bit}`];
       if (idx !== undefined) entities.pressKey3D(idx, false);
     }
+  });
+
+  // Release every key in the ZX Spectrum matrix — called on focus loss / visibility change
+  function releaseAllKeys(): void {
+    const wasm = getWasm();
+    if (!wasm) return;
+    const seen = new Set<string>();
+    const allMappings: Array<{ row: number; bit: number }> = [
+      ...Object.values(KEY_MAP),
+      ...Object.values(COMPOUND_KEYS).flat(),
+    ];
+    for (const k of allMappings) {
+      const key = `${k.row},${k.bit}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      wasm.keyUp(k.row, k.bit);
+      const idx = ROW_BIT_TO_KEY_INDEX[key];
+      if (idx !== undefined) entities.pressKey3D(idx, false);
+    }
+    releaseHeldKey();
+  }
+
+  window.addEventListener('blur', releaseAllKeys);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) releaseAllKeys();
   });
 
   // ── 3D entity click/touch input ─────────────────────────────────────────
@@ -469,6 +494,17 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     const rect = canvas.getBoundingClientRect();
     pointerUp(touch.clientX - rect.left, touch.clientY - rect.top);
   }, { passive: false });
+
+  canvas.addEventListener('touchcancel', () => {
+    releaseAllKeys();
+    joystickActive = false;
+    if (firePressed) {
+      const wasm = getWasm();
+      if (wasm) wasm.keyUp(JOYSTICK_FIRE[joystickType].row, JOYSTICK_FIRE[joystickType].bit);
+      firePressed = false;
+      animateKeyPress(entities.fireButtonCap, false);
+    }
+  });
 }
 
 // ── Raycasting ────────────────────────────────────────────────────────────────
