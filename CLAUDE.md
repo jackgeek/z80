@@ -87,3 +87,9 @@ See [docs/architecture.md](docs/architecture.md) for full system design.
 - [src/docs/CLAUDE.md](src/docs/CLAUDE.md) — Frontend overview, module relationships
 - [src/docs/architecture.md](src/docs/architecture.md) — Audio, file formats, WASM integration, rendering
 - [packages/assembler/docs/CLAUDE.md](packages/assembler/docs/CLAUDE.md) — Z80 assembler tool overview
+
+## Active Technologies
+- TypeScript (strict) — ES2020 modules + PlayCanvas (3D scene positioning via `EntityLayout`) (002-landscape-layout-flip)
+
+## Recent Changes
+- 002-landscape-layout-flip: Added TypeScript (strict) — ES2020 modules + PlayCanvas (3D scene positioning via `EntityLayout`)

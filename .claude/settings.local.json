@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(ls c:/git/personal/z80/src/*.js)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(.specify/scripts/bash/create-new-feature.sh \"modify the landscape layout to have the screen on the left and the keyboard on the right\" --json --short-name \"landscape-layout-flip\")",
+      "Bash(.specify/scripts/bash/setup-plan.sh --json)",
+      "Bash(.specify/scripts/bash/update-agent-context.sh claude:*)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh --json)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)"
     ]
   }
 }

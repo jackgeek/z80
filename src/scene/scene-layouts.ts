@@ -115,14 +115,23 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
     }
     case 'landscape': {
       const ctrlY = bottom + ctrlRowH * 0.5;
+      const gap = usableW * 0.03;
+      const halfW = (usableW - gap) / 2;
+      const leftCenterX = left + halfW / 2;
+      const rightCenterX = right - halfW / 2;
+      const lMonScale = Math.min(1.4, halfW / MONITOR_UNIT_W);
+      const lMs: [number, number, number] = [lMonScale, lMonScale, lMonScale];
+      const lKbScale = halfW / KB_UNIT_W;
+      const lKs: [number, number, number] = [lKbScale, lKbScale, lKbScale];
+      const centerY = (top + ctrlY + ctrlRowH * 0.5) / 2;
       return {
-        monitor:    { position: [0, 0.1, 0],             rotation: [0, 0, 0], scale: ms, visible: true },
-        keyboard:   { position: [0, -10, 0],             rotation: FLAT,   scale: ks, visible: false },
-        joystick:   { position: [left, ctrlY, 0],         rotation: FLAT, scale: cs, visible: true },
-        fireButton: { position: [right, ctrlY, 0.4],     rotation: FLAT, scale: cs, visible: true },
-        menuButton: { position: [right, top, 0.4],       rotation: FLAT, scale: cs, visible: true },
-        menuCodex:  { position: [0, 0, -8],              rotation: [0, 0, 0], scale: [1, 1, 1], visible: false },
-        camera:     { position: [0, 0, camZ],            rotation: [0, 0, 0], scale: [1, 1, 1] },
+        monitor:    { position: [leftCenterX,  centerY, 0], rotation: [0, 0, 0], scale: lMs, visible: true },
+        keyboard:   { position: [rightCenterX, centerY, 0], rotation: FLAT,      scale: lKs, visible: true },
+        joystick:   { position: [left,  ctrlY, 0],           rotation: FLAT, scale: cs, visible: true },
+        fireButton: { position: [right, ctrlY, 0.4],         rotation: FLAT, scale: cs, visible: true },
+        menuButton: { position: [0,     ctrlY, 0.4],         rotation: FLAT, scale: cs, visible: true },
+        menuCodex:  { position: [0, 0, -8],                  rotation: [0, 0, 0], scale: [1, 1, 1], visible: false },
+        camera:     { position: [0, 0, camZ],                rotation: [0, 0, 0], scale: [1, 1, 1] },
       };
     }
     case 'menuPortrait': {
@@ -143,15 +152,24 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
     case 'menuLandscape': {
       const pushZ = -4;
       const ctrlY = bottom + ctrlRowH * 0.5;
-      const smallMs: [number, number, number] = [monScale * 0.65, monScale * 0.65, monScale * 0.65];
+      const gap = usableW * 0.03;
+      const halfW = (usableW - gap) / 2;
+      const leftCenterX = left + halfW / 2;
+      const rightCenterX = right - halfW / 2;
+      const centerY = (top + ctrlY + ctrlRowH * 0.5) / 2;
+      const lMonScale = Math.min(1.4, halfW / MONITOR_UNIT_W) * 0.65;
+      const lMs: [number, number, number] = [lMonScale, lMonScale, lMonScale];
+      const lKbScale = (halfW / KB_UNIT_W) * 0.65;
+      const lKs: [number, number, number] = [lKbScale, lKbScale, lKbScale];
+      const cs06: [number, number, number] = [ctrlScale * 0.6, ctrlScale * 0.6, ctrlScale * 0.6];
       return {
-        monitor:    { position: [0, 0.1, pushZ],          rotation: FLAT, scale: smallMs, visible: true },
-        keyboard:   { position: [0, -10, pushZ],          rotation: FLAT, scale: ks, visible: false },
-        joystick:   { position: [left * 0.6, ctrlY, pushZ], rotation: FLAT, scale: [ctrlScale * 0.6, ctrlScale * 0.6, ctrlScale * 0.6], visible: true },
-        fireButton: { position: [right * 0.6, ctrlY, pushZ], rotation: FLAT, scale: [ctrlScale * 0.6, ctrlScale * 0.6, ctrlScale * 0.6], visible: true },
-        menuButton: { position: [right * 0.6, top * 0.7, pushZ], rotation: FLAT, scale: [ctrlScale * 0.6, ctrlScale * 0.6, ctrlScale * 0.6], visible: true },
-        menuCodex:  { position: [0, 0, 0],               rotation: [0, 0, 0], scale: [1.2, 1.2, 1.2], visible: true },
-        camera:     { position: [0, 0, 6],               rotation: [0, 0, 0], scale: [1, 1, 1] },
+        monitor:    { position: [leftCenterX,  centerY, pushZ], rotation: FLAT, scale: lMs,  visible: true },
+        keyboard:   { position: [rightCenterX, centerY, pushZ], rotation: FLAT, scale: lKs,  visible: true },
+        joystick:   { position: [left * 0.6,   ctrlY,   pushZ], rotation: FLAT, scale: cs06, visible: true },
+        fireButton: { position: [right * 0.6,  ctrlY,   pushZ], rotation: FLAT, scale: cs06, visible: true },
+        menuButton: { position: [0,            ctrlY,   pushZ], rotation: FLAT, scale: cs06, visible: true },
+        menuCodex:  { position: [0, 0, 0],                      rotation: [0, 0, 0], scale: [1.2, 1.2, 1.2], visible: true },
+        camera:     { position: [0, 0, 6],                      rotation: [0, 0, 0], scale: [1, 1, 1] },
       };
     }
     default:
