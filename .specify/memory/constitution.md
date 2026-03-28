@@ -19,6 +19,13 @@ Templates requiring updates:
 Follow-up TODOs:
   - TODO(RATIFICATION_DATE): exact original adoption date unknown; set to first-fill date
     2026-03-22. Update if an earlier decision record exists.
+
+AMENDMENT 1.0.0 → 1.1.0 (2026-03-28)
+==================
+Principle III updated: replaced "Three.js" with "PlayCanvas" as the sole permitted
+third-party UI dependency. Three.js was removed as part of the steampunk-UI rewrite
+(Phase 1, committed 2026-03-21). Technology Stack section updated to match.
+Templates requiring updates: none — principle change is a scoping clarification.
 -->
 
 # ZX Spectrum 48K Emulator Constitution
@@ -57,8 +64,9 @@ make the data-flow hard to audit. Shared memory with documented offsets is the c
 ### III. No Frameworks
 
 The browser-side codebase MUST use vanilla TypeScript only. React, Vue, Angular, Svelte, and any
-equivalent UI framework are prohibited. DOM manipulation MUST be direct. Three.js is the sole
-permitted third-party UI dependency (scoped to 3D visualisation in `video/cube.ts`).
+equivalent UI framework are prohibited. DOM manipulation MUST be direct. PlayCanvas is the sole
+permitted third-party UI dependency (scoped to 3D scene rendering in `src/entities/`, `src/scene/`,
+and `src/materials/`).
 
 **Rationale**: Framework overhead conflicts with the performance budget of a real-time emulator
 running at 50 Hz. Vanilla TS keeps bundle size minimal and avoids virtual-DOM reconciliation
@@ -131,7 +139,7 @@ would corrupt their data.
 **Language (frontend)**: TypeScript (strict), ES modules, no transpile targets below ES2020
 **Bundler**: Vite — dev server with HMR, production build to `dist/`
 **Runtime**: Bun (build scripts, assembler CLI, dependency management)
-**3D library**: Three.js (bundled via bun, tree-shaken by Vite)
+**3D library**: PlayCanvas (bundled via bun, tree-shaken by Vite)
 **Assembler tool**: Node.js CLI in `packages/assembler/` (standalone, not bundled into the site)
 **Deployment**: GitHub Actions → `dist/` → GitHub Pages (static)
 
@@ -188,4 +196,4 @@ Workflow section before merge.
 
 ---
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-22 | **Last Amended**: 2026-03-22
+**Version**: 1.1.0 | **Ratified**: 2026-03-22 | **Last Amended**: 2026-03-28

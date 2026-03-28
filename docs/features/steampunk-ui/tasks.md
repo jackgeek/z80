@@ -687,3 +687,43 @@
     - **Started**: TBD
     - **Completed**: TBD
     - **Duration**: TBD
+
+### Phase 7: GLB Keyboard + Key Animation (Retrospective)
+
+**Status**: Complete
+**Progress**: 4/4 tasks complete (100%)
+**Phase Started**: 2026-03-22
+**Phase Completed**: 2026-03-28
+**Note**: This phase was implemented outside speckit and backfilled on 2026-03-28.
+
+- [x] 7.0 Replace procedural keyboard geometry with a loaded GLB model and add key animations
+  - **Commits**: `2807260`, `2b82f01`, `de41d99`, `88ac513`
+  - **Relevant Files:**
+    - `src/entities/keyboard3d.ts` - Keyboard entity (GLB loader + pressKey animation)
+    - `src/input/input-bridge.ts` - Key hold tracking, pressKey integration
+    - `src/data/key-layout.ts` - Added `ROW_BIT_TO_KEY_INDEX` export
+    - `src/scene/scene-graph.ts` - Updated to work with GLB keyboard
+    - `src/scene/scene-layouts.ts` - Layout tuning for GLB model
+    - `public/assets/ZXSpectrum2.glb` - ZX Spectrum keyboard 3D model asset
+  - [x] 7.1 Replace procedural keyboard with GLB asset load (`2807260`)
+    - Rewrote `createKeyboard3D` to load `assets/ZXSpectrum2.glb` via `pc.Asset`
+    - Keys discovered from named mesh nodes (`Key.Caps.0` … `Key.Caps.39`) on asset ready
+    - Removed all procedural box geometry, material construction, and rainbow stripe
+    - Added `pressKey(index, down)` export that offsets key Y position to simulate press
+    - Updated `scene-graph.ts` and `scene-layouts.ts` to orient/scale the GLB correctly
+    - **Completed**: 2026-03-22
+  - [x] 7.2 Animate keys from `ROWS` flat index mapping (`2b82f01`)
+    - Added `ROW_BIT_TO_KEY_INDEX` lookup map to `src/data/key-layout.ts`
+    - Wired `pressKey` calls into `input-bridge.ts` so 3D key mesh animates on every keydown/keyup
+    - Updated `scene-graph.ts` to expose `pressKey` on `SceneEntities`
+    - **Completed**: 2026-03-25
+  - [x] 7.3 Fix GLB key animation correctness (`de41d99`)
+    - Fixed `pressKey` to use `restPositions` map to avoid drift across repeated presses
+    - Corrected Y-axis press direction for GLB coordinate space
+    - Removed the now-unused original `ZXSpectrum.glb` asset
+    - **Completed**: 2026-03-28
+  - [x] 7.4 Hold keys down while pointer is held (`88ac513`)
+    - Tracked active pointer-down key index in `input-bridge.ts`
+    - On `pointerup` / `pointerleave` / `pointercancel`: release held key and call `wasm.keyUp()`
+    - Fixed `keyboard3d.ts` press logic to call `pressKey(index, false)` on pointer release
+    - **Completed**: 2026-03-28
