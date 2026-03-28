@@ -1,0 +1,7 @@
+[build]
+  command = "bun install --frozen-lockfile && bun run build"
+  publish = "dist"
+
+[build.environment]
+  VITE_BASE_PATH = "/"
+  NODE_VERSION = "20"
