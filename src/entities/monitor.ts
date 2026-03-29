@@ -99,6 +99,7 @@ export function createMonitor(app: pc.Application): MonitorResult {
   borderPlane.setLocalPosition(0, 0, 0.065);
   borderPlane.render!.meshInstances[0].material = borderMat;
   monitor.addChild(borderPlane);
+  borderPlane.tags.add('screen');
 
   // ── Screen quad (256x192 main display, on top of border) ──────────────
   const screenQuad = new pc.Entity('ScreenQuad');
