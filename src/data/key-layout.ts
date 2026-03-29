@@ -52,7 +52,7 @@ export const ROWS: VKeyDef[][] = [
     { label:'ENTER', row:6, bit:0x01, wide:1.8 },
   ],
   [
-    { label:'CAPS\nSHIFT', row:0, bit:0x01, wide:1.8, sticky:true, id:'key-caps' },
+    { label:'CAPS\nSHIFT', row:0, bit:0x01, wide:1.8, id:'key-caps' },
     { label:'Z', sym:':',  sub:'COPY',   ext:'LN',     row:0, bit:0x02 },
     { label:'X', sym:'/',  sub:'CLEAR',  ext:'EXP',    row:0, bit:0x04 },
     { label:'C', sym:'?',  sub:'CONT',   ext:'LPRINT', row:0, bit:0x08 },
@@ -60,7 +60,7 @@ export const ROWS: VKeyDef[][] = [
     { label:'B', sym:'*',  sub:'BORDER', ext:'BIN',    row:7, bit:0x10 },
     { label:'N', sym:',',  sub:'NEXT',   ext:"INKEY$", row:7, bit:0x08 },
     { label:'M', sym:'.',  sub:'PAUSE',  ext:'PI',     row:7, bit:0x04 },
-    { label:'SYM\nSHIFT', row:7, bit:0x02, wide:1.8, sticky:true, id:'key-sym' },
+    { label:'SYM\nSHIFT', row:7, bit:0x02, wide:1.8, id:'key-sym' },
     { label:'BREAK\nSPACE', row:7, bit:0x01, wide:2.2 },
   ],
 ];
