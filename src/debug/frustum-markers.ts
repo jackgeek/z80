@@ -10,8 +10,6 @@ export interface FrustumMarkers {
 
 interface Marker {
   entity: pc.Entity;
-  screenX: number; // 0 = left, canvas.width = right
-  screenY: number; // 0 = top, canvas.height = bottom (PlayCanvas convention)
   label: string;
 }
 
@@ -44,7 +42,7 @@ export function createFrustumMarkers(
     app.root.addChild(entity);
 
     // Placeholder screen coords — updated each frame
-    return { entity, screenX: 0, screenY: 0, label };
+    return { entity, label };
   });
 
   const worldPos = new pc.Vec3();
@@ -58,7 +56,7 @@ export function createFrustumMarkers(
       const canvas = app.graphicsDevice.canvas;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
-      const camZ = cameraEntity.getPosition().z;
+      const camZ = cameraEntity.getLocalPosition().z;
 
       // Screen coords for each corner (PlayCanvas: 0,0 = top-left)
       const corners: Array<[number, number, string, Marker]> = [
