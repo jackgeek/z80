@@ -3,11 +3,13 @@ import type { MenuItem } from './menu-def.js';
 export class MenuPanel {
   private el: HTMLDivElement;
   private headerEl: HTMLDivElement;
+  private titleEl: HTMLSpanElement;
   private listEl: HTMLDivElement;
   private items: MenuItem[] = [];
   private activeIndex = 0;
   private _visible = false;
   private _lastSettingValues: Record<string, string | boolean | null> = {};
+  private _pendingPromptResolve: ((v: string | null) => void) | null = null;
 
   // Set by controller before show()
   onActivate: ((item: MenuItem) => void) | null = null;
@@ -47,6 +49,15 @@ export class MenuPanel {
       'align-items:center',
     ].join(';');
 
+    this.titleEl = document.createElement('span');
+    const closeBtn = document.createElement('span');
+    closeBtn.textContent = 'X';
+    closeBtn.style.cssText = 'cursor:pointer;color:#888';
+    closeBtn.title = 'Close';
+    closeBtn.addEventListener('click', () => this.onClose?.());
+    this.headerEl.appendChild(this.titleEl);
+    this.headerEl.appendChild(closeBtn);
+
     this.listEl = document.createElement('div');
 
     this.el.appendChild(this.headerEl);
@@ -73,12 +84,17 @@ export class MenuPanel {
   hide(): void {
     this._visible = false;
     this.el.style.display = 'none';
+    if (this._pendingPromptResolve) {
+      this._pendingPromptResolve(null);
+      this._pendingPromptResolve = null;
+    }
   }
 
   // Show a text input prompt overlaid in the panel.
   // Resolves with the entered string or null if cancelled.
   prompt(label: string): Promise<string | null> {
     return new Promise((resolve) => {
+      this._pendingPromptResolve = resolve;
       this.listEl.innerHTML = '';
 
       const wrapper = document.createElement('div');
@@ -107,10 +123,12 @@ export class MenuPanel {
         if (e.code === 'Enter') {
           e.preventDefault();
           const val = input.value.trim();
+          this._pendingPromptResolve = null;
           resolve(val || null);
         }
         if (e.code === 'Escape') {
           e.preventDefault();
+          this._pendingPromptResolve = null;
           resolve(null);
         }
       });
@@ -130,9 +148,7 @@ export class MenuPanel {
   ): void {
     // Header
     const crumbDisplay = breadcrumb ? ` ${breadcrumb}` : '';
-    this.headerEl.innerHTML = `<span>&#9658; ${title}${crumbDisplay}</span><span style="cursor:pointer;color:#888" title="Close">X</span>`;
-    const closeBtn = this.headerEl.querySelector('span:last-child') as HTMLElement;
-    closeBtn.addEventListener('click', () => this.onClose?.());
+    this.titleEl.textContent = `► ${title}${crumbDisplay}`;
 
     // Items
     this.listEl.innerHTML = '';
@@ -189,7 +205,7 @@ export class MenuPanel {
       });
       row.addEventListener('mouseover', () => {
         this.activeIndex = idx;
-        this._rerenderRows(settingValues);
+        this._rerenderRows(this._lastSettingValues);
       });
 
       this.listEl.appendChild(row);
