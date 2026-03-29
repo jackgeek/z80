@@ -45,7 +45,15 @@ export function createFrustumMarkers(
     return { entity, label };
   });
 
-  const worldPos = new pc.Vec3();
+  // Pre-allocated to avoid per-frame GC
+  const rayNear = new pc.Vec3();
+  const rayFar = new pc.Vec3();
+  const cornerScreens: Array<[number, number, Marker]> = [
+    [0, 0, markers[0]],
+    [0, 0, markers[1]],
+    [0, 0, markers[2]],
+    [0, 0, markers[3]],
+  ];
   let logTimer = 0;
 
   return {
@@ -56,29 +64,35 @@ export function createFrustumMarkers(
       const canvas = app.graphicsDevice.canvas;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
-      const camZ = cameraEntity.getLocalPosition().z;
 
-      // Screen coords for each corner (PlayCanvas: 0,0 = top-left)
-      const corners: Array<[number, number, string, Marker]> = [
-        [0,     0,     'TL', markers[0]],
-        [w - 1, 0,     'TR', markers[1]],
-        [0,     h - 1, 'BL', markers[2]],
-        [w - 1, h - 1, 'BR', markers[3]],
-      ];
+      // Screen corners: (PlayCanvas: 0,0 = top-left)
+      cornerScreens[0][0] = 0;     cornerScreens[0][1] = 0;
+      cornerScreens[1][0] = w - 1; cornerScreens[1][1] = 0;
+      cornerScreens[2][0] = 0;     cornerScreens[2][1] = h - 1;
+      cornerScreens[3][0] = w - 1; cornerScreens[3][1] = h - 1;
 
       let minX = Infinity, maxX = -Infinity;
       let minY = Infinity, maxY = -Infinity;
 
-      const positions: Record<string, pc.Vec3> = {};
+      const positions: [number, number][] = [];
 
-      for (const [sx, sy, label, marker] of corners) {
-        cam.screenToWorld(sx, sy, camZ, worldPos);
-        marker.entity.setPosition(worldPos.x, worldPos.y, 0);
-        positions[label] = worldPos.clone();
-        if (worldPos.x < minX) minX = worldPos.x;
-        if (worldPos.x > maxX) maxX = worldPos.x;
-        if (worldPos.y < minY) minY = worldPos.y;
-        if (worldPos.y > maxY) maxY = worldPos.y;
+      for (const [sx, sy, marker] of cornerScreens) {
+        // Cast ray at near and far clip planes, then intersect with Z=0 plane.
+        // This is correct regardless of how screenToWorld interprets its depth
+        // parameter — corner rays aren't parallel to the camera axis, so passing
+        // camZ directly would place the point above Z=0 in world space.
+        cam.screenToWorld(sx, sy, cam.nearClip, rayNear);
+        cam.screenToWorld(sx, sy, cam.farClip, rayFar);
+        // Parametric: P = rayNear + t*(rayFar - rayNear), solve P.z = 0
+        const t = -rayNear.z / (rayFar.z - rayNear.z);
+        const wx = rayNear.x + t * (rayFar.x - rayNear.x);
+        const wy = rayNear.y + t * (rayFar.y - rayNear.y);
+        marker.entity.setPosition(wx, wy, 0);
+        positions.push([wx, wy]);
+        if (wx < minX) minX = wx;
+        if (wx > maxX) maxX = wx;
+        if (wy < minY) minY = wy;
+        if (wy > maxY) maxY = wy;
       }
 
       logTimer += dt;
@@ -86,16 +100,14 @@ export function createFrustumMarkers(
         logTimer = 0;
         const W = maxX - minX;
         const H = maxY - minY;
-        const tl = positions['TL'];
-        const tr = positions['TR'];
-        const bl = positions['BL'];
-        const br = positions['BR'];
+        const camZ = cameraEntity.getLocalPosition().z;
+        const fmt = (v: number) => v.toFixed(3);
         console.log(
-          `[FrustumMarkers] W=${W.toFixed(3)} H=${H.toFixed(3)} camZ=${camZ.toFixed(2)}` +
-          ` | TL=(${tl.x.toFixed(3)}, ${tl.y.toFixed(3)})` +
-          ` TR=(${tr.x.toFixed(3)}, ${tr.y.toFixed(3)})` +
-          ` BL=(${bl.x.toFixed(3)}, ${bl.y.toFixed(3)})` +
-          ` BR=(${br.x.toFixed(3)}, ${br.y.toFixed(3)})`
+          `[FrustumMarkers] W=${fmt(W)} H=${fmt(H)} camZ=${camZ.toFixed(2)}` +
+          ` | TL=(${fmt(positions[0][0])}, ${fmt(positions[0][1])})` +
+          ` TR=(${fmt(positions[1][0])}, ${fmt(positions[1][1])})` +
+          ` BL=(${fmt(positions[2][0])}, ${fmt(positions[2][1])})` +
+          ` BR=(${fmt(positions[3][0])}, ${fmt(positions[3][1])})`
         );
       }
     },
