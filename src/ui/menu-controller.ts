@@ -294,7 +294,8 @@ export class MenuController {
 
     try {
       showStatus('Fetching…');
-      const res = await fetch(url);
+      const fetchUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+      const res = await fetch(fetchUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.arrayBuffer();
 
