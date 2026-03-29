@@ -132,8 +132,30 @@ export class MenuPanel {
         }
       });
 
+      const okBtn = document.createElement('button');
+      okBtn.textContent = 'OK';
+      okBtn.style.cssText = [
+        'margin-top:8px',
+        'background:#00d4ff',
+        'color:#000',
+        'border:none',
+        'font-family:"Courier New",monospace',
+        'font-size:14px',
+        'font-weight:bold',
+        'padding:4px 16px',
+        'cursor:pointer',
+        'width:100%',
+        'box-sizing:border-box',
+      ].join(';');
+      okBtn.addEventListener('click', () => {
+        const val = input.value.trim();
+        this._pendingPromptResolve = null;
+        resolve(val || null);
+      });
+
       wrapper.appendChild(lbl);
       wrapper.appendChild(input);
+      wrapper.appendChild(okBtn);
       this.listEl.appendChild(wrapper);
 
       setTimeout(() => input.focus(), 0);
