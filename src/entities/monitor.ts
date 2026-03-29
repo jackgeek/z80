@@ -108,6 +108,7 @@ export function createMonitor(app: pc.Application): MonitorResult {
   screenQuad.setLocalPosition(0, 0, 0.07);
   screenQuad.render!.meshInstances[0].material = screenMat;
   monitor.addChild(screenQuad);
+  screenQuad.tags.add('screen');
 
   // ── Brass bezel frame ─────────────────────────────────────────────────────
   const halfW = BORDER_W / 2 + BEZEL;
