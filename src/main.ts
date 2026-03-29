@@ -13,6 +13,7 @@ import { setGlobalStatusFn } from './ui/status-bridge.js';
 import { initFileHandler } from './ui/file-handler.js';
 import { createSceneMachineActor } from './state-machine/machine.js';
 import { updateTweens, setViewportParams, snapToCurrentScene } from './scene/scene-transitions.js';
+import { createFrustumMarkers } from './debug/frustum-markers.js';
 
 const FRAME_INTERVAL = 1000 / 50; // 20ms per PAL frame
 
@@ -22,6 +23,9 @@ async function main(): Promise<void> {
 
   // 2. Build 3D scene graph (camera, lights, all entities)
   const entities = buildSceneGraph(app);
+
+  // DEBUG: frustum corner markers — remove when measurements confirmed
+  const frustumMarkers = createFrustumMarkers(app, entities.camera);
 
   // 3. Create status overlay for messages
   const { setStatusText } = createStatusOverlay(app);
@@ -55,6 +59,8 @@ async function main(): Promise<void> {
 
     // Update codex spin interaction
     entities.codexInteraction.update(dt);
+
+    frustumMarkers.update(dt);
   });
 
   // 6. Wire global status function for media modules
