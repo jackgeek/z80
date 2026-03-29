@@ -287,7 +287,13 @@ export class MenuController {
     const url = await this.panel.prompt('URL:');
     if (!url) return;
 
+    const name = await this.panel.prompt('Tape name:');
+    if (!name) { this.close(); return; }
+
+    this.close();
+
     try {
+      showStatus('Fetching…');
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.arrayBuffer();
@@ -295,15 +301,11 @@ export class MenuController {
       const lower = url.toLowerCase();
       const format: 'tap' | 'tzx' = lower.endsWith('.tzx') ? 'tzx' : 'tap';
 
-      const name = await this.panel.prompt('Tape name:');
-      if (!name) return;
-
       const tapeId = await db.saveTape(name, data, format);
       await loadTapeFile(data, `tape.${format}`);
       setCurrentTapeId(tapeId);
       setCurrentTapeData(data);
       showStatus(`Imported: ${name}`);
-      this.close();
     } catch (e) {
       showStatus('Import error: ' + (e as Error).message);
     }
