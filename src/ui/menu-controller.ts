@@ -299,13 +299,12 @@ export class MenuController {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.arrayBuffer();
 
-      const lower = url.toLowerCase();
-      const format: 'tap' | 'tzx' = lower.endsWith('.tzx') ? 'tzx' : 'tap';
+      const header = new Uint8Array(data, 0, Math.min(8, data.byteLength));
+      const isTzx = String.fromCharCode(...Array.from(header.slice(0, 7))) === 'ZXTape!';
+      const format: 'tap' | 'tzx' = isTzx ? 'tzx' : 'tap';
 
       const tapeId = await db.saveTape(name, data, format);
-      await loadTapeFile(data, `tape.${format}`);
-      setCurrentTapeId(tapeId);
-      setCurrentTapeData(data);
+      await this._loadTape(tapeId);
       showStatus(`Imported: ${name}`);
     } catch (e) {
       showStatus('Import error: ' + (e as Error).message);
@@ -339,9 +338,7 @@ export class MenuController {
           const name = window.prompt('Tape name:', defaultName) ?? defaultName;
 
           const tapeId = await db.saveTape(name, data, format);
-          await loadTapeFile(data, file.name);
-          setCurrentTapeId(tapeId);
-          setCurrentTapeData(data);
+          await this._loadTape(tapeId);
           showStatus(`Imported: ${name}`);
         } catch (e) {
           showStatus('Import error: ' + (e as Error).message);
