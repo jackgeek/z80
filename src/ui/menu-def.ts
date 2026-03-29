@@ -73,6 +73,18 @@ export function buildRootMenu(
     items.push({ type: 'action', label: 'CREATE TAPE', id: 'CREATE_TAPE' });
   }
 
+  if (tapes.length > 0) {
+    items.push({
+      type: 'submenu',
+      label: 'DELETE TAPE',
+      items: tapes.map(t => ({
+        type: 'action' as const,
+        label: t.name.toUpperCase(),
+        id: `DELETE_TAPE:${t.id}`,
+      })),
+    });
+  }
+
   items.push({ type: 'separator' });
 
   // Dynamic tape list

@@ -134,6 +134,18 @@ export class MenuController {
       return;
     }
 
+    if (id.startsWith('DELETE_TAPE:')) {
+      const tapeId = id.slice('DELETE_TAPE:'.length);
+      await db.deleteTape(tapeId);
+      if (getCurrentTapeId() === tapeId) {
+        setCurrentTapeId(null);
+        setCurrentTapeData(null);
+      }
+      showStatus('Tape deleted.');
+      this.close();
+      return;
+    }
+
     if (id.startsWith('LOAD_TAPE:')) {
       const success = await this._loadTape(id.slice('LOAD_TAPE:'.length));
       if (success) this.close();
