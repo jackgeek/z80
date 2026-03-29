@@ -59,7 +59,6 @@ async function main(): Promise<void> {
 
     // Update codex spin interaction
     entities.codexInteraction.update(dt);
-
     frustumMarkers.update(dt);
   });
 
