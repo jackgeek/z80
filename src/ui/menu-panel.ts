@@ -14,7 +14,6 @@ export class MenuPanel {
   // Set by controller before show()
   onActivate: ((item: MenuItem) => void) | null = null;
   onClose: (() => void) | null = null;
-  el_show_for_import = false;
 
   constructor() {
     this.el = document.createElement('div');

@@ -29,30 +29,34 @@ export class MenuController {
   }
 
   async open(): Promise<void> {
-    const [tapes, joystickOverlay, joystickType, clockSpeed] = await Promise.all([
-      db.getTapes(),
-      db.getSetting('joystickOverlay'),
-      db.getSetting('joystickType'),
-      db.getSetting('clockSpeed'),
-    ]);
+    try {
+      const [tapes, joystickOverlay, joystickType, clockSpeed] = await Promise.all([
+        db.getTapes(),
+        db.getSetting('joystickOverlay'),
+        db.getSetting('joystickType'),
+        db.getSetting('clockSpeed'),
+      ]);
 
-    this.settingCache = {
-      joystickOverlay: joystickOverlay ?? false,
-      joystickType: joystickType ?? 'sinclair1',
-      clockSpeed: clockSpeed ?? 'normal',
-    };
+      this.settingCache = {
+        joystickOverlay: joystickOverlay ?? false,
+        joystickType: joystickType ?? 'sinclair1',
+        clockSpeed: clockSpeed ?? 'normal',
+      };
 
-    const currentTapeId = getCurrentTapeId();
-    let savesForCurrentTape: SaveItem[] = [];
-    if (currentTapeId) {
-      savesForCurrentTape = await db.getSavesForTape(currentTapeId);
+      const currentTapeId = getCurrentTapeId();
+      let savesForCurrentTape: SaveItem[] = [];
+      if (currentTapeId) {
+        savesForCurrentTape = await db.getSavesForTape(currentTapeId);
+      }
+
+      const rootItems = buildRootMenu(tapes, currentTapeId, savesForCurrentTape);
+      this.stack = [rootItems];
+      this.stackTitles = ['ZX SPECTRUM'];
+      setMenuOpen(true);
+      this._showCurrent();
+    } catch (e) {
+      showStatus('Menu unavailable: ' + (e as Error).message);
     }
-
-    const rootItems = buildRootMenu(tapes, currentTapeId, savesForCurrentTape);
-    this.stack = [rootItems];
-    this.stackTitles = ['ZX SPECTRUM'];
-    setMenuOpen(true);
-    this._showCurrent();
   }
 
   close(): void {
@@ -83,30 +87,34 @@ export class MenuController {
   }
 
   async activate(item: MenuItem): Promise<void> {
-    switch (item.type) {
-      case 'action':
-        await this._handleAction(item.id);
-        break;
-      case 'submenu':
-        this.push(item.items, item.label);
-        break;
-      case 'toggle': {
-        const current = this.settingCache[item.settingKey];
-        const next = !(current === true || current === 'true');
-        await db.setSetting(item.settingKey, next);
-        this.settingCache[item.settingKey] = next;
-        this._showCurrent();
-        break;
+    try {
+      switch (item.type) {
+        case 'action':
+          await this._handleAction(item.id);
+          break;
+        case 'submenu':
+          this.push(item.items, item.label);
+          break;
+        case 'toggle': {
+          const current = this.settingCache[item.settingKey];
+          const next = !(current === true || current === 'true');
+          await db.setSetting(item.settingKey, next);
+          this.settingCache[item.settingKey] = next;
+          this._showCurrent();
+          break;
+        }
+        case 'choice': {
+          const choiceItems: MenuItem[] = item.options.map(opt => ({
+            type: 'action' as const,
+            label: opt.toUpperCase(),
+            id: `CHOICE:${item.settingKey}:${opt}`,
+          }));
+          this.push(choiceItems, item.label);
+          break;
+        }
       }
-      case 'choice': {
-        const choiceItems: MenuItem[] = item.options.map(opt => ({
-          type: 'action' as const,
-          label: opt.toUpperCase(),
-          id: `CHOICE:${item.settingKey}:${opt}`,
-        }));
-        this.push(choiceItems, item.label);
-        break;
-      }
+    } catch (e) {
+      showStatus('Error: ' + (e as Error).message);
     }
   }
 
@@ -127,8 +135,8 @@ export class MenuController {
     }
 
     if (id.startsWith('LOAD_TAPE:')) {
-      await this._loadTape(id.slice('LOAD_TAPE:'.length));
-      this.close();
+      const success = await this._loadTape(id.slice('LOAD_TAPE:'.length));
+      if (success) this.close();
       return;
     }
 
@@ -188,10 +196,10 @@ export class MenuController {
     }
   }
 
-  private async _loadTape(tapeId: string): Promise<void> {
+  private async _loadTape(tapeId: string): Promise<boolean> {
     const tapes = await db.getTapes();
     const tape = tapes.find(t => t.id === tapeId);
-    if (!tape) { showStatus('Tape not found.'); return; }
+    if (!tape) { showStatus('Tape not found.'); return false; }
 
     const saves = await db.getSavesForTape(tapeId);
     const quickStart = saves.find(s => s.saveName === 'Quick Start');
@@ -199,13 +207,13 @@ export class MenuController {
     if (quickStart) {
       loadZ80(quickStart.data);
       showStatus(`Loaded: ${tape.name}`);
-      return;
+      return true;
     }
 
     // No Quick Start — load tape and auto-save when done
     if (!tape.data) {
       showStatus('No tape data (Create Tape item).');
-      return;
+      return false;
     }
 
     resetEmulator();
@@ -219,17 +227,21 @@ export class MenuController {
 
     typeLoadAndRun();
     showStatus(`Loading: ${tape.name}…`);
+    return true;
   }
 
   private async _autoSaveQuickStart(tapeId: string): Promise<void> {
-    // Guard: don't duplicate if one already exists
-    const saves = await db.getSavesForTape(tapeId);
-    if (saves.some(s => s.saveName === 'Quick Start')) return;
-    if (!isRomLoaded()) return;
-    const data = captureZ80();
-    if (data.byteLength === 0) return;
-    await db.createSave(tapeId, 'Quick Start', data);
-    showStatus('Quick Start saved.');
+    try {
+      const saves = await db.getSavesForTape(tapeId);
+      if (saves.some(s => s.saveName === 'Quick Start')) return;
+      if (!isRomLoaded()) return;
+      const data = captureZ80();
+      if (data.byteLength === 0) return;
+      await db.createSave(tapeId, 'Quick Start', data);
+      showStatus('Quick Start saved.');
+    } catch (e) {
+      showStatus('Auto-save failed: ' + (e as Error).message);
+    }
   }
 
   private async _promptSave(): Promise<void> {
@@ -263,28 +275,26 @@ export class MenuController {
     const url = await this.panel.prompt('URL:');
     if (!url) return;
 
-    let data: ArrayBuffer;
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      data = await res.arrayBuffer();
+      const data = await res.arrayBuffer();
+
+      const lower = url.toLowerCase();
+      const format: 'tap' | 'tzx' = lower.endsWith('.tzx') ? 'tzx' : 'tap';
+
+      const name = await this.panel.prompt('Tape name:');
+      if (!name) return;
+
+      const tapeId = await db.saveTape(name, data, format);
+      await loadTapeFile(data, `tape.${format}`);
+      setCurrentTapeId(tapeId);
+      setCurrentTapeData(data);
+      showStatus(`Imported: ${name}`);
+      this.close();
     } catch (e) {
-      showStatus('Fetch error: ' + (e as Error).message);
-      return;
+      showStatus('Import error: ' + (e as Error).message);
     }
-
-    const lower = url.toLowerCase();
-    const format: 'tap' | 'tzx' = lower.endsWith('.tzx') ? 'tzx' : 'tap';
-
-    const name = await this.panel.prompt('Tape name:');
-    if (!name) return;
-
-    const tapeId = await db.saveTape(name, data, format);
-    await loadTapeFile(data, `tape.${format}`);
-    setCurrentTapeId(tapeId);
-    setCurrentTapeData(data);
-    showStatus(`Imported: ${name}`);
-    this.close();
   }
 
   private _triggerFileImport(): void {
@@ -294,28 +304,34 @@ export class MenuController {
     input.style.display = 'none';
     document.body.appendChild(input);
 
-    input.addEventListener('change', async () => {
-      const file = input.files?.[0];
-      document.body.removeChild(input);
-      if (!file) return;
+    input.addEventListener('change', () => {
+      void (async () => {
+        try {
+          const file = input.files?.[0];
+          document.body.removeChild(input);
+          if (!file) return;
 
-      const data = await file.arrayBuffer();
-      const lower = file.name.toLowerCase();
+          const data = await file.arrayBuffer();
+          const lower = file.name.toLowerCase();
 
-      if (lower.endsWith('.z80')) {
-        loadZ80(data);
-        return;
-      }
+          if (lower.endsWith('.z80')) {
+            loadZ80(data);
+            return;
+          }
 
-      const format: 'tap' | 'tzx' = lower.endsWith('.tzx') ? 'tzx' : 'tap';
-      const defaultName = file.name.replace(/\.[^.]+$/, '');
-      const name = window.prompt('Tape name:', defaultName) ?? defaultName;
+          const format: 'tap' | 'tzx' = lower.endsWith('.tzx') ? 'tzx' : 'tap';
+          const defaultName = file.name.replace(/\.[^.]+$/, '');
+          const name = window.prompt('Tape name:', defaultName) ?? defaultName;
 
-      const tapeId = await db.saveTape(name, data, format);
-      await loadTapeFile(data, file.name);
-      setCurrentTapeId(tapeId);
-      setCurrentTapeData(data);
-      showStatus(`Imported: ${name}`);
+          const tapeId = await db.saveTape(name, data, format);
+          await loadTapeFile(data, file.name);
+          setCurrentTapeId(tapeId);
+          setCurrentTapeData(data);
+          showStatus(`Imported: ${name}`);
+        } catch (e) {
+          showStatus('Import error: ' + (e as Error).message);
+        }
+      })();
     });
 
     input.click();
