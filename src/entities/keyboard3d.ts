@@ -21,8 +21,8 @@ export function createKeyboard3D(app: pc.Application): Keyboard3DResult {
   const keys = new Map<string, pc.Entity>();
   const restPositions = new Map<string, pc.Vec3>();
 
-  const asset = new pc.Asset("ZXSpectrum2", "container", {
-    url: "assets/ZXSpectrum2.glb",
+  const asset = new pc.Asset("ZXSpectrum", "container", {
+    url: "assets/ZXSpectrum.glb",
   });
   app.assets.add(asset);
   asset.ready(() => {
