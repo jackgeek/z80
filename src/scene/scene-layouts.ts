@@ -73,7 +73,6 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
   // Controls Y centre (shared by all scenes)
   const ctrlY = bottom + ctrlRowH / 2;
 
-
   switch (sceneName) {
     case 'portrait1': {
       // Split content height equally; scale each element to fill its half
@@ -171,10 +170,11 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
       };
     }
     case 'menuLandscape': {
-      const pushZ  = -4;
-      const shrink = 0.65;
+      const pushZ        = -4;
+      const elementShrink = 0.65;
+      const ctrlShrink   = 0.6;
 
-      // Derive background element scales from the landscape fit-to-space values × shrink
+      // Derive background element scales from the landscape fit-to-space values × elementShrink
       const panelGap     = usableW * 0.03;
       const halfPanelW   = (usableW - panelGap) / 2;
       const leftCenterX  = left  + halfPanelW / 2;
@@ -183,15 +183,15 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
 
       const monScale = Math.min(contentH / MONITOR_UNIT_H, halfPanelW / MONITOR_UNIT_W);
       const kbScale  = Math.min(contentH / KB_UNIT_H,      halfPanelW / KB_UNIT_W);
-      const smallMs: [number, number, number] = [monScale * shrink, monScale * shrink, monScale * shrink];
-      const smallKs: [number, number, number] = [kbScale  * shrink, kbScale  * shrink, kbScale  * shrink];
-      const cs06:    [number, number, number] = [ctrlScale * 0.6, ctrlScale * 0.6, ctrlScale * 0.6];
+      const smallMs: [number, number, number] = [monScale * elementShrink, monScale * elementShrink, monScale * elementShrink];
+      const smallKs: [number, number, number] = [kbScale  * elementShrink, kbScale  * elementShrink, kbScale  * elementShrink];
+      const cs06:    [number, number, number] = [ctrlScale * ctrlShrink, ctrlScale * ctrlShrink, ctrlScale * ctrlShrink];
 
       return {
         monitor:    { position: [leftCenterX,  centerY, pushZ], rotation: FLAT, scale: smallMs,     visible: true },
         keyboard:   { position: [rightCenterX, centerY, pushZ], rotation: FLAT, scale: smallKs,     visible: true },
-        joystick:   { position: [left  * 0.6,  ctrlY,   pushZ], rotation: FLAT, scale: cs06,        visible: true },
-        fireButton: { position: [right * 0.6,  ctrlY,   pushZ], rotation: FLAT, scale: cs06,        visible: true },
+        joystick:   { position: [left  * ctrlShrink,  ctrlY,   pushZ], rotation: FLAT, scale: cs06,        visible: true },
+        fireButton: { position: [right * ctrlShrink,  ctrlY,   pushZ], rotation: FLAT, scale: cs06,        visible: true },
         menuButton: { position: [0,            ctrlY,   pushZ], rotation: FLAT, scale: cs06,        visible: true },
         menuCodex:  { position: [0, 0, 0], rotation: FLAT, scale: [1.2, 1.2, 1.2], visible: true },
         camera:     { position: [0, 0, 6], rotation: FLAT, scale: [1, 1, 1] },
