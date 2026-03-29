@@ -3,16 +3,12 @@
 import * as pc from 'playcanvas';
 import { KEY_MAP, COMPOUND_KEYS } from './keyboard.js';
 import { ROW_BIT_TO_KEY_INDEX } from '../data/key-layout.js';
-import { getWasm, isRunning, isPaused, setPaused, isTurboMode, setTurboMode } from '../emulator/state.js';
+import { getWasm, isRunning } from '../emulator/state.js';
 import { initAudio } from '../audio/audio.js';
-import { resetEmulator } from '../emulator/wasm-loader.js';
-import { saveZ80 } from '../media/snapshot.js';
-import { triggerFileInput } from '../ui/file-handler.js';
-import { showStatus } from '../ui/status-bridge.js';
 import { GestureDetector } from './gesture-detector.js';
 import { interpolateScenes, getCurrentScene, transitionToScene } from '../scene/scene-transitions.js';
-import { CODEX_MENU_ITEMS } from '../entities/menu-codex.js';
 import type { SceneEntities } from '../scene/scene-graph.js';
+import type { MenuController } from '../ui/menu-controller.js';
 
 let audioInitialized = false;
 
@@ -32,14 +28,11 @@ export type JoystickType = 'sinclair1' | 'cursor' | 'kempston';
 let joystickType: JoystickType = 'sinclair1';
 let joystickActive = false;
 let firePressed = false;
-let codexDragging = false;
-let codexDragStartY = 0;
-let codexDragMoved = false;
 
 const JOYSTICK_FIRE: Record<JoystickType, { row: number; bit: number }> = {
-  sinclair1: { row: 4, bit: 0x01 }, // 0
-  cursor:    { row: 4, bit: 0x01 }, // 0
-  kempston:  { row: 4, bit: 0x01 }, // placeholder — kempston uses port
+  sinclair1: { row: 4, bit: 0x01 },
+  cursor:    { row: 4, bit: 0x01 },
+  kempston:  { row: 4, bit: 0x01 },
 };
 
 export function setJoystickType(type: JoystickType): void {
@@ -65,92 +58,34 @@ function sendScene(event: Record<string, unknown>): void {
 
 const gestureDetector = new GestureDetector();
 
-// Whether the menu is currently open (tracked via state machine subscription)
+// Whether the menu is currently open (set by MenuController)
 let menuOpen = false;
 
 export function setMenuOpen(open: boolean): void {
   menuOpen = open;
 }
 
-function handleCodexAction(action: string): void {
-  switch (action) {
-    case 'LOAD_TAPE':
-    case 'LOAD_ROM':
-      triggerFileInput();
-      sendScene({ type: 'MENU_CLOSE' });
-      break;
-    case 'SAVE_STATE':
-      saveZ80();
-      sendScene({ type: 'MENU_CLOSE' });
-      break;
-    case 'RESET':
-      resetEmulator();
-      sendScene({ type: 'MENU_CLOSE' });
-      break;
-    case 'TOGGLE_PAUSE':
-      setPaused(!isPaused());
-      showStatus(isPaused() ? 'Paused' : 'Resumed');
-      sendScene({ type: 'MENU_CLOSE' });
-      break;
-    case 'TOGGLE_TURBO':
-      setTurboMode(!isTurboMode());
-      showStatus(isTurboMode() ? 'Turbo ON' : 'Turbo OFF');
-      sendScene({ type: 'MENU_CLOSE' });
-      break;
-    case 'CYCLE_JOYSTICK': {
-      const types: JoystickType[] = ['sinclair1', 'cursor', 'kempston'];
-      const idx = (types.indexOf(joystickType) + 1) % types.length;
-      joystickType = types[idx];
-      showStatus(`Joystick: ${joystickType}`);
-      sendScene({ type: 'MENU_CLOSE' });
-      break;
-    }
-    case 'MENU_CLOSE':
-      sendScene({ type: 'MENU_CLOSE' });
-      break;
-  }
+// MenuController reference — set by main.ts after construction
+let menuController: MenuController | null = null;
+
+export function setMenuController(ctrl: MenuController): void {
+  menuController = ctrl;
 }
 
 export function initInputBridge(app: pc.Application, entities: SceneEntities): void {
   // ── Physical keyboard input ─────────────────────────────────────────────
   window.addEventListener('keydown', (e: KeyboardEvent) => {
-    // Don't intercept if focus is on file input
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     ensureAudio();
 
-    // Codex navigation when menu is open
-    if (menuOpen) {
-      if (e.code === 'ArrowUp') {
-        e.preventDefault();
-        entities.codexInteraction.stepUp();
-        return;
-      }
-      if (e.code === 'ArrowDown') {
-        e.preventDefault();
-        entities.codexInteraction.stepDown();
-        return;
-      }
-      if (e.code === 'Enter') {
-        e.preventDefault();
-        const action = entities.codexInteraction.activate();
-        handleCodexAction(action);
-        return;
-      }
-      if (e.code === 'Escape') {
-        e.preventDefault();
-        sendScene({ type: 'MENU_CLOSE' });
-        return;
-      }
-      return; // Don't process other keys while menu is open
-    }
+    // While menu is open, MenuPanel handles its own keyboard in capture phase
+    if (menuOpen) return;
 
     const wasm = getWasm();
     if (!wasm || !isRunning()) return;
 
-    // Skip keys pressed while Meta (Command) is held — the browser never fires
-    // keyup for them, which leaves keys stuck in the emulator.
     if (e.metaKey) return;
 
     const compound = COMPOUND_KEYS[e.code];
@@ -180,8 +115,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
-    // On macOS, keyup events for keys held while Meta (Command) is down are
-    // suppressed by the browser. Release everything when Meta is released.
     if (e.code === 'MetaLeft' || e.code === 'MetaRight') {
       releaseAllKeys();
       return;
@@ -207,7 +140,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     }
   });
 
-  // Release every key in the ZX Spectrum matrix — called on focus loss / visibility change
   function releaseAllKeys(): void {
     const wasm = getWasm();
     if (!wasm) return;
@@ -236,10 +168,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   const canvas = app.graphicsDevice.canvas;
   const camera = entities.camera;
 
-  // Track which keys are currently pressed (by entity name)
   const pressedKeys = new Set<string>();
-
-  // Currently held spectrum key (pressed on pointerDown, released on move/up)
   let heldSpectrumKey: { row: number; bit: number; keyIndex: number | undefined } | null = null;
 
   function releaseHeldKey(): void {
@@ -291,28 +220,13 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
     const hit = raycastFromScreen(app, camera, screenX, screenY);
 
-    // When menu is open: tap on codex interacts, tap elsewhere dismisses
     if (menuOpen) {
-      if (hit && hit.tags.has('menu-codex')) {
-        codexDragging = true;
-        codexDragStartY = screenY;
-        codexDragMoved = false;
-        entities.codexInteraction.onDragStart(screenY);
-      } else {
-        sendScene({ type: 'MENU_CLOSE' });
-      }
+      // Tap outside the HTML panel area closes menu (panel handles its own events)
+      if (!hit) menuController?.close();
       return;
     }
 
     if (!hit) return;
-
-    if (hit.tags.has('menu-codex')) {
-      codexDragging = true;
-      codexDragStartY = screenY;
-      codexDragMoved = false;
-      entities.codexInteraction.onDragStart(screenY);
-      return;
-    }
 
     if (hit.tags.has('fire-button')) {
       const fireKey = JOYSTICK_FIRE[joystickType];
@@ -323,7 +237,7 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     }
 
     if (hit.tags.has('menu-button')) {
-      sendScene({ type: 'MENU_OPEN' });
+      void menuController?.open();
       return;
     }
 
@@ -331,14 +245,12 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       joystickActive = true;
       return;
     }
-    // spectrum-key handled immediately in pointerDown via pressSpectrumKey
   }
 
   function handlePointerUp(_screenX: number, _screenY: number): void {
     const wasm = getWasm();
     if (!wasm) return;
 
-    // Release fire button
     if (firePressed) {
       const fireKey = JOYSTICK_FIRE[joystickType];
       wasm.keyUp(fireKey.row, fireKey.bit);
@@ -346,10 +258,8 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       animateKeyPress(entities.fireButtonCap, false);
     }
 
-    // Release joystick
     joystickActive = false;
 
-    // Release all pressed non-sticky keys
     for (const name of pressedKeys) {
       const entity = findEntityByName(app.root, name);
       if (entity && entity.tags.has('spectrum-key')) {
@@ -365,14 +275,11 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       }
     }
     pressedKeys.clear();
-
-    // Auto-unlatch sticky modifiers on next non-modifier press
-    // (handled on next keyDown)
   }
 
   // ── Gesture-aware pointer events ──────────────────────────────────────────
 
-  let sceneDragging = false; // true when user is mid-drag between scenes
+  let sceneDragging = false;
 
   function getSwipeTarget(direction: 'up' | 'down'): string | null {
     const current = getCurrentScene();
@@ -380,11 +287,9 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     if (current === 'portrait1' && direction === 'down') return 'portrait2';
     if (current === 'portrait2' && direction === 'up') return 'portrait1';
     if (current === 'portrait2' && direction === 'down') return 'portrait1';
-    return null; // no swipe transition in other states
+    return null;
   }
 
-  // Store pointer down position — only process key/button presses on pointerUp
-  // if no scene drag occurred
   let pendingDownX = 0;
   let pendingDownY = 0;
 
@@ -402,28 +307,16 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       handlePointerDown(screenX, screenY);
       return;
     }
-    // Immediately press any spectrum key under the pointer
     pressSpectrumKey(screenX, screenY);
   }
 
   function pointerMove(screenX: number, screenY: number): void {
-    // Release held spectrum key if pointer moves away (>8px threshold)
     if (heldSpectrumKey) {
       const dx = screenX - pendingDownX;
       const dy = screenY - pendingDownY;
-      if (dx * dx + dy * dy > 64) {
-        releaseHeldKey();
-      }
+      if (dx * dx + dy * dy > 64) releaseHeldKey();
     }
 
-    // Codex drag
-    if (codexDragging) {
-      codexDragMoved = true;
-      entities.codexInteraction.onDragMove(screenY);
-      return;
-    }
-
-    // Scene drag — interpolate between current and target scene
     if (gestureDetector.isTracking()) {
       const drag = gestureDetector.updateTracking(screenY);
       if (drag && drag.progress > 0.02) {
@@ -437,40 +330,21 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   }
 
   function pointerUp(_screenX: number, screenY: number): void {
-    // Release any held spectrum key
     releaseHeldKey();
 
-    // Codex drag end
-    if (codexDragging) {
-      codexDragging = false;
-      entities.codexInteraction.onDragEnd();
-      if (!codexDragMoved) {
-        const action = entities.codexInteraction.activate();
-        handleCodexAction(action);
-      }
-      return;
-    }
-
-    // Scene drag end — commit or cancel
     const result = gestureDetector.endTracking(screenY);
     if (sceneDragging) {
       sceneDragging = false;
       const target = result && getSwipeTarget(result.direction);
       if (result?.commit && target) {
-        // Committed swipe — transition scene and stop (don't also fire key press)
         sendScene({ type: 'SWIPE', direction: result.direction });
         return;
       }
-      // Cancelled swipe — snap back, then fall through to process as a tap
       sendScene({ type: 'SWIPE_CANCEL' });
       const current = getCurrentScene();
-      if (sceneActor) {
-        transitionToScene(current, entities);
-      }
+      if (sceneActor) transitionToScene(current, entities);
     }
 
-    // Process deferred key/button press.
-    // keyUp is delayed so the emulator sees the press and the animation is visible.
     handlePointerDown(pendingDownX, pendingDownY);
     setTimeout(() => {
       handlePointerUp(pendingDownX, pendingDownY);
@@ -478,15 +352,9 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   }
 
   // Mouse events
-  canvas.addEventListener('mousedown', (e: MouseEvent) => {
-    pointerDown(e.offsetX, e.offsetY);
-  });
-  canvas.addEventListener('mousemove', (e: MouseEvent) => {
-    pointerMove(e.offsetX, e.offsetY);
-  });
-  canvas.addEventListener('mouseup', (e: MouseEvent) => {
-    pointerUp(e.offsetX, e.offsetY);
-  });
+  canvas.addEventListener('mousedown', (e: MouseEvent) => { pointerDown(e.offsetX, e.offsetY); });
+  canvas.addEventListener('mousemove', (e: MouseEvent) => { pointerMove(e.offsetX, e.offsetY); });
+  canvas.addEventListener('mouseup',   (e: MouseEvent) => { pointerUp(e.offsetX, e.offsetY); });
 
   // Touch events
   canvas.addEventListener('touchstart', (e: TouchEvent) => {
@@ -522,13 +390,13 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   });
 }
 
-// ── Raycasting ────────────────────────────────────────────────────────────────
+// ── Raycasting ─────────────────────────────────────────────────────────────────
 
 function raycastFromScreen(
   app: pc.Application,
   camera: pc.Entity,
   screenX: number,
-  screenY: number
+  screenY: number,
 ): pc.Entity | null {
   const cam = camera.camera!;
   const from = new pc.Vec3();
@@ -536,13 +404,10 @@ function raycastFromScreen(
   cam.screenToWorld(screenX, screenY, cam.nearClip, from);
   cam.screenToWorld(screenX, screenY, cam.farClip, to);
 
-  // Manual ray-entity intersection against all interactive entities
   const ray = new pc.Ray(from, to.sub(from).normalize());
   let closestEntity: pc.Entity | null = null;
   let closestDist = Infinity;
 
-  // Spectrum keys: find the key whose world-space center is closest to the ray.
-  // Keys are ~0.38 world units apart; we accept hits within 0.3 units of the ray.
   const KEY_HIT_RADIUS = 0.3;
   let closestPerpDist = KEY_HIT_RADIUS;
   const spectrumKeys = app.root.findByTag('spectrum-key') as pc.Entity[];
@@ -550,7 +415,7 @@ function raycastFromScreen(
     const pos = entity.getPosition();
     const toPos = new pc.Vec3().sub2(pos, from);
     const proj = toPos.dot(ray.direction);
-    if (proj <= 0) continue; // behind camera
+    if (proj <= 0) continue;
     const closestPoint = new pc.Vec3().copy(ray.direction).mulScalar(proj).add(from);
     const perpDist = pos.distance(closestPoint);
     if (perpDist < closestPerpDist) {
@@ -560,8 +425,7 @@ function raycastFromScreen(
     }
   }
 
-  // Other interactive entities: AABB test
-  const otherTags = ['fire-button', 'menu-button', 'joystick', 'menu-codex', 'screen'];
+  const otherTags = ['fire-button', 'menu-button', 'joystick', 'screen'];
   for (const tag of otherTags) {
     const tagEntities = app.root.findByTag(tag) as pc.Entity[];
     for (const entity of tagEntities) {
@@ -581,19 +445,16 @@ function raycastFromScreen(
 }
 
 function getEntityAABB(entity: pc.Entity): pc.BoundingBox {
-  // For GLB key entities: derive world AABB from mesh local AABB + full world transform
   const render = entity.render;
   if (render && render.meshInstances.length > 0) {
     const mesh = render.meshInstances[0].mesh;
     if (mesh) {
       const worldAabb = new pc.BoundingBox();
       worldAabb.setFromTransformedAabb(mesh.aabb, entity.getWorldTransform());
-      // Expand slightly so thin key caps are easier to tap
       worldAabb.halfExtents.add(new pc.Vec3(0.05, 0.05, 0.1));
       return worldAabb;
     }
   }
-  // Fallback for procedural entities (fire button, joystick, etc.)
   const pos = entity.getPosition();
   const scale = entity.getLocalScale();
   const parent = entity.parent;
@@ -601,7 +462,7 @@ function getEntityAABB(entity: pc.Entity): pc.BoundingBox {
   const halfExtents = new pc.Vec3(
     (scale.x * parentScale.x) / 2,
     (scale.y * parentScale.y) / 2,
-    (scale.z * parentScale.z) / 2
+    (scale.z * parentScale.z) / 2,
   );
   return new pc.BoundingBox(pos, halfExtents);
 }
@@ -609,8 +470,6 @@ function getEntityAABB(entity: pc.Entity): pc.BoundingBox {
 function findEntityByName(root: pc.Entity, name: string): pc.Entity | null {
   return root.findByName(name) as pc.Entity | null;
 }
-
-// ── Key press animation ───────────────────────────────────────────────────────
 
 function animateKeyPress(entity: pc.Entity, down: boolean): void {
   const pos = entity.getLocalPosition();
