@@ -42,13 +42,12 @@ export function decompressZ80(data: Uint8Array, expectedLength: number): Uint8Ar
   return out;
 }
 
-// Save emulator state as .z80 v3 file
-export function saveZ80(): void {
+// Returns raw .z80 v3 bytes without triggering a download
+export function captureZ80(): ArrayBuffer {
   const wasm = getWasm();
   const memory = getMemory();
-  if (!wasm || !memory || !isRomLoaded()) return;
+  if (!wasm || !memory) return new ArrayBuffer(0);
 
-  // Read registers
   const a = wasm.getA();
   const f = wasm.getF();
   const bc = wasm.getBC2();
@@ -70,17 +69,16 @@ export function saveZ80(): void {
   const de2 = wasm.getDE_prime();
   const hl2 = wasm.getHL_prime();
 
-  // Build 30-byte main header
   const header = new Uint8Array(30);
   header[0] = a;
   header[1] = f;
   header[2] = bc & 0xFF; header[3] = bc >> 8;
   header[4] = hl & 0xFF; header[5] = hl >> 8;
-  header[6] = 0; header[7] = 0; // PC=0 means v2/v3
+  header[6] = 0; header[7] = 0;
   header[8] = sp & 0xFF; header[9] = sp >> 8;
   header[10] = i;
   header[11] = r & 0x7F;
-  header[12] = ((r >> 7) & 1) | ((border & 7) << 1) | (1 << 5); // bit5=compressed
+  header[12] = ((r >> 7) & 1) | ((border & 7) << 1) | (1 << 5);
   header[13] = de & 0xFF; header[14] = de >> 8;
   header[15] = bc2 & 0xFF; header[16] = bc2 >> 8;
   header[17] = de2 & 0xFF; header[18] = de2 >> 8;
@@ -93,20 +91,16 @@ export function saveZ80(): void {
   header[28] = iff2 ? 1 : 0;
   header[29] = im & 3;
 
-  // Build 56-byte extended header (v3: length=54)
   const extHeader = new Uint8Array(56);
-  extHeader[0] = 54; extHeader[1] = 0; // extended header length = 54
-  extHeader[2] = pc & 0xFF; extHeader[3] = pc >> 8; // actual PC
-  extHeader[4] = 0; // hardware mode: 0 = 48K
+  extHeader[0] = 54; extHeader[1] = 0;
+  extHeader[2] = pc & 0xFF; extHeader[3] = pc >> 8;
+  extHeader[4] = 0;
 
-  // Read 48 KB RAM directly from WASM linear memory
   const ram = new Uint8Array(memory.buffer, MEM_BASE + 0x4000, 0xC000);
-
-  // Compress 3 pages (16 KB each)
   const pages = [
-    { id: 8, data: ram.slice(0, 0x4000) },         // 0x4000-0x7FFF
-    { id: 4, data: ram.slice(0x4000, 0x8000) },     // 0x8000-0xBFFF
-    { id: 5, data: ram.slice(0x8000, 0xC000) },     // 0xC000-0xFFFF
+    { id: 8, data: ram.slice(0, 0x4000) },
+    { id: 4, data: ram.slice(0x4000, 0x8000) },
+    { id: 5, data: ram.slice(0x8000, 0xC000) },
   ];
 
   const pageBlocks: Uint8Array[] = [];
@@ -120,7 +114,6 @@ export function saveZ80(): void {
     pageBlocks.push(block);
   }
 
-  // Concatenate all parts
   const totalLen = 30 + 56 + pageBlocks.reduce((s, b) => s + b.length, 0);
   const file = new Uint8Array(totalLen);
   file.set(header, 0);
@@ -130,9 +123,15 @@ export function saveZ80(): void {
     file.set(block, offset);
     offset += block.length;
   }
+  return file.buffer;
+}
 
-  // Trigger download
-  const blob = new Blob([file], { type: 'application/octet-stream' });
+// Save emulator state as .z80 v3 file (triggers download)
+export function saveZ80(): void {
+  if (!isRomLoaded()) return;
+  const buf = captureZ80();
+  if (buf.byteLength === 0) return;
+  const blob = new Blob([buf], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a_el = document.createElement('a');
   a_el.href = url;
@@ -141,7 +140,6 @@ export function saveZ80(): void {
   a_el.click();
   document.body.removeChild(a_el);
   URL.revokeObjectURL(url);
-
   showStatus('Snapshot saved.');
 }
 
