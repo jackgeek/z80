@@ -218,6 +218,8 @@ export class MenuController {
 
     if (quickStart) {
       loadZ80(quickStart.data);
+      setCurrentTapeId(tapeId);
+      setCurrentTapeData(tape.data ?? null);
       showStatus(`Loaded: ${tape.name}`);
       return true;
     }
