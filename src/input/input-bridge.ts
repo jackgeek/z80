@@ -149,6 +149,10 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     const wasm = getWasm();
     if (!wasm || !isRunning()) return;
 
+    // Skip keys pressed while Meta (Command) is held — the browser never fires
+    // keyup for them, which leaves keys stuck in the emulator.
+    if (e.metaKey) return;
+
     const compound = COMPOUND_KEYS[e.code];
     if (compound) {
       e.preventDefault();
@@ -175,6 +179,13 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    // On macOS, keyup events for keys held while Meta (Command) is down are
+    // suppressed by the browser. Release everything when Meta is released.
+    if (e.code === 'MetaLeft' || e.code === 'MetaRight') {
+      releaseAllKeys();
+      return;
+    }
 
     const compound = COMPOUND_KEYS[e.code];
     if (compound) {
