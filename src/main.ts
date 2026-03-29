@@ -7,7 +7,7 @@ import { initWasm } from './emulator/wasm-loader.js';
 import { tickEmulatorFrame } from './emulator/frame-loop.js';
 import { updateMonitorTexture, updateBorderColor } from './entities/monitor.js';
 import { getWasm, getMemory, isRunning, isRomLoaded } from './emulator/state.js';
-import { initInputBridge, setSceneActor, setMenuOpen, setMenuController } from './input/input-bridge.js';
+import { initInputBridge, setSceneActor, setMenuController } from './input/input-bridge.js';
 import { setGlobalStatusFn } from './ui/status-bridge.js';
 import { initFileHandler } from './ui/file-handler.js';
 import { createSceneMachineActor } from './state-machine/machine.js';
@@ -74,8 +74,6 @@ async function main(): Promise<void> {
 
   // 10. Track menu state via state machine
   sceneActor.subscribe((state: any) => {
-    const isMenu = state.value === 'menuPortrait' || state.value === 'menuLandscape';
-    if (isMenu) setMenuOpen(true);
     console.log(`[SceneMachine] state: ${String(state.value)} | context:`, {
       lastPortrait: state.context.lastPortraitScene,
       orientation: state.context.orientation,
