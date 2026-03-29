@@ -8,6 +8,7 @@ let wasPlaying = false;
 let onTapeDoneCallback: (() => void) | null = null;
 
 export function registerTapeDoneCallback(cb: () => void): void {
+  wasPlaying = false; // reset so we don't fire immediately on a fresh load
   onTapeDoneCallback = cb;
 }
 

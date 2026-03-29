@@ -2,7 +2,7 @@ import { getWasm } from '../emulator/state.js';
 
 // Types: J  SYMBOL+P  SYMBOL+P  ENTER
 // (i.e. LOAD "" then Enter — standard 48K BASIC tape loader)
-export function typeLoadAndRun(): void {
+export function typeLoadAndRun(startDelay = 0): void {
   const wasm = getWasm();
   if (!wasm) return;
 
@@ -30,5 +30,6 @@ export function typeLoadAndRun(): void {
   // ENTER
   press(6, 0x01);
 
-  steps.forEach((step, i) => setTimeout(step, i * GAP));
+  steps.forEach((step, i) => setTimeout(step, startDelay + i * GAP));
 }
+

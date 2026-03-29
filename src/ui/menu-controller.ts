@@ -225,7 +225,7 @@ export class MenuController {
       void this._autoSaveQuickStart(tapeId);
     });
 
-    typeLoadAndRun();
+    typeLoadAndRun(3000); // wait for 48K ROM boot (~2.5 s) before typing
     showStatus(`Loading: ${tape.name}…`);
     return true;
   }
