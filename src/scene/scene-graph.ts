@@ -18,11 +18,6 @@ import {
   createMenuButton,
   type MenuButtonResult,
 } from "../entities/menu-button.js";
-import {
-  createMenuCodex,
-  type MenuCodexResult,
-} from "../entities/menu-codex.js";
-import { CodexInteraction } from "../input/codex-interaction.js";
 
 export interface SceneEntities {
   camera: pc.Entity;
@@ -38,8 +33,6 @@ export interface SceneEntities {
   fireButton: pc.Entity;
   fireButtonCap: pc.Entity;
   menuButton: pc.Entity;
-  menuCodex: pc.Entity;
-  codexInteraction: CodexInteraction;
 }
 
 export function buildSceneGraph(app: pc.Application): SceneEntities {
@@ -138,12 +131,6 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   menuResult.menuButtonEntity.setLocalScale(0.5, 0.5, 0.5);
   app.root.addChild(menuResult.menuButtonEntity);
 
-  // ── Menu Codex ─────────────────────────────────────────────────────────
-  const codexResult: MenuCodexResult = createMenuCodex(app);
-  codexResult.codexEntity.setLocalPosition(0, 0, -8);
-  app.root.addChild(codexResult.codexEntity);
-  const codexInteraction = new CodexInteraction(codexResult);
-
   return {
     camera,
     monitor: monitorResult.monitorEntity,
@@ -158,7 +145,5 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
     fireButton: fireResult.fireEntity,
     fireButtonCap: fireResult.fireButtonCap,
     menuButton: menuResult.menuButtonEntity,
-    menuCodex: codexResult.codexEntity,
-    codexInteraction,
   };
 }
