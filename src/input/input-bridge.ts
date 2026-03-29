@@ -380,8 +380,12 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   function pointerDown(screenX: number, screenY: number): void {
     pendingDownX = screenX;
     pendingDownY = screenY;
-    const viewportH = canvas.clientHeight || canvas.height;
-    gestureDetector.beginTracking(screenY, viewportH);
+
+    const screenHit = raycastFromScreen(app, camera, screenX, screenY);
+    if (screenHit?.tags.has('screen')) {
+      const viewportH = canvas.clientHeight || canvas.height;
+      gestureDetector.beginTracking(screenY, viewportH);
+    }
 
     if (menuOpen) {
       handlePointerDown(screenX, screenY);
@@ -546,7 +550,7 @@ function raycastFromScreen(
   }
 
   // Other interactive entities: AABB test
-  const otherTags = ['fire-button', 'menu-button', 'joystick', 'menu-codex'];
+  const otherTags = ['fire-button', 'menu-button', 'joystick', 'menu-codex', 'screen'];
   for (const tag of otherTags) {
     const tagEntities = app.root.findByTag(tag) as pc.Entity[];
     for (const entity of tagEntities) {
