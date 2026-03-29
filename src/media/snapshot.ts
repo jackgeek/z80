@@ -46,7 +46,7 @@ export function decompressZ80(data: Uint8Array, expectedLength: number): Uint8Ar
 export function captureZ80(): ArrayBuffer {
   const wasm = getWasm();
   const memory = getMemory();
-  if (!wasm || !memory) return new ArrayBuffer(0);
+  if (!wasm || !memory || !isRomLoaded()) return new ArrayBuffer(0);
 
   const a = wasm.getA();
   const f = wasm.getF();
@@ -128,7 +128,6 @@ export function captureZ80(): ArrayBuffer {
 
 // Save emulator state as .z80 v3 file (triggers download)
 export function saveZ80(): void {
-  if (!isRomLoaded()) return;
   const buf = captureZ80();
   if (buf.byteLength === 0) return;
   const blob = new Blob([buf], { type: 'application/octet-stream' });
