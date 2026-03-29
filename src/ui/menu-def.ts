@@ -34,7 +34,9 @@ export function buildRootMenu(
       });
     }
   }
-  items.push({ type: 'submenu', label: 'EXPORT', items: exportItems });
+  if (exportItems.length > 0) {
+    items.push({ type: 'submenu', label: 'EXPORT', items: exportItems });
+  }
 
   items.push({ type: 'action', label: 'BASIC', id: 'BASIC' });
 
@@ -56,15 +58,17 @@ export function buildRootMenu(
 
   if (currentTapeId) {
     items.push({ type: 'action', label: 'SAVE', id: 'SAVE' });
-    items.push({
-      type: 'submenu',
-      label: 'LOAD',
-      items: savesForCurrentTape.map(s => ({
-        type: 'action' as const,
-        label: s.saveName.toUpperCase(),
-        id: `LOAD_SAVE:${s.id}`,
-      })),
-    });
+    if (savesForCurrentTape.length > 0) {
+      items.push({
+        type: 'submenu',
+        label: 'LOAD',
+        items: savesForCurrentTape.map(s => ({
+          type: 'action' as const,
+          label: s.saveName.toUpperCase(),
+          id: `LOAD_SAVE:${s.id}`,
+        })),
+      });
+    }
   } else {
     items.push({ type: 'action', label: 'CREATE TAPE', id: 'CREATE_TAPE' });
   }
