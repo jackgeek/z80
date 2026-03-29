@@ -7,7 +7,17 @@
       "Bash(.specify/scripts/bash/setup-plan.sh --json)",
       "Bash(.specify/scripts/bash/update-agent-context.sh claude:*)",
       "Bash(.specify/scripts/bash/check-prerequisites.sh --json)",
-      "Bash(.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)"
+      "Bash(.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(bun run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(bash /Users/jackallan/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.6/skills/brainstorming/scripts/start-server.sh --project-dir /Users/jackallan/dev/z80)",
+      "Bash(/Users/jackallan/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.6/scripts/start-server.sh --project-dir /Users/jackallan/dev/z80)",
+      "Bash(/Users/jackallan/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.6/skills/brainstorming/scripts/start-server.sh --project-dir /Users/jackallan/dev/z80)",
+      "Bash(npx tsc:*)",
+      "Bash(git stash:*)",
+      "Bash(npm run:*)",
+      "Bash(node --input-type=module -e \"import\\(''./src/ui/menu-def.ts''\\).catch\\(e => console.error\\(e.message\\)\\)\")"
     ]
   }
 }
