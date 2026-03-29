@@ -44,3 +44,12 @@ export function setAnimFrameId(id: number | null): void { animFrameId = id; }
 
 export function getCachedRomData(): Uint8Array | null { return cachedRomData; }
 export function setCachedRomData(d: Uint8Array): void { cachedRomData = d; }
+
+let currentTapeId: string | null = null;
+let currentTapeData: ArrayBuffer | null = null;
+
+export function getCurrentTapeId(): string | null { return currentTapeId; }
+export function setCurrentTapeId(id: string | null): void { currentTapeId = id; }
+
+export function getCurrentTapeData(): ArrayBuffer | null { return currentTapeData; }
+export function setCurrentTapeData(d: ArrayBuffer | null): void { currentTapeData = d; }
