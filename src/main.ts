@@ -1,5 +1,4 @@
 // ZX Spectrum 48K Emulator — Steam-Punk 3D UI Entry Point
-// PlayCanvas scene with WASM emulator core + XState scene management
 
 import { initPlayCanvasApp } from './scene/app.js';
 import { buildSceneGraph } from './scene/scene-graph.js';
@@ -7,46 +6,47 @@ import { createStatusOverlay } from './ui/status-overlay.js';
 import { initWasm } from './emulator/wasm-loader.js';
 import { tickEmulatorFrame } from './emulator/frame-loop.js';
 import { updateMonitorTexture, updateBorderColor } from './entities/monitor.js';
-import { getWasm, getMemory, isRunning } from './emulator/state.js';
-import { initInputBridge, setSceneActor, setMenuOpen } from './input/input-bridge.js';
+import { getWasm, getMemory, isRunning, isRomLoaded } from './emulator/state.js';
+import { initInputBridge, setSceneActor, setMenuOpen, setMenuController } from './input/input-bridge.js';
 import { setGlobalStatusFn } from './ui/status-bridge.js';
 import { initFileHandler } from './ui/file-handler.js';
 import { createSceneMachineActor } from './state-machine/machine.js';
 import { updateTweens, setViewportParams, snapToCurrentScene } from './scene/scene-transitions.js';
 import { createFrustumMarkers } from './debug/frustum-markers.js';
+import { MenuController } from './ui/menu-controller.js';
+import { captureZ80, loadZ80 } from './media/snapshot.js';
+import * as db from './data/db.js';
 
-const FRAME_INTERVAL = 1000 / 50; // 20ms per PAL frame
+const FRAME_INTERVAL = 1000 / 50;
 
 async function main(): Promise<void> {
-  // 1. Create PlayCanvas application (full viewport)
+  // 1. Create PlayCanvas application
   const app = initPlayCanvasApp();
 
-  // 2. Build 3D scene graph (camera, lights, all entities)
+  // 2. Build 3D scene graph
   const entities = buildSceneGraph(app);
 
   // DEBUG: frustum corner markers — remove when measurements confirmed
   const frustumMarkers = createFrustumMarkers(app, entities.camera);
 
-  // 3. Create status overlay for messages
+  // 3. Create status overlay
   const { setStatusText } = createStatusOverlay(app);
 
   // 4. Create and start XState scene state machine
   const sceneActor = createSceneMachineActor(entities);
   sceneActor.start();
 
-  // 5. Wire PlayCanvas update loop — emulator tick + texture update + tweens
+  // 5. Wire PlayCanvas update loop
   let frameAccum = 0;
 
   app.on('update', (dt: number) => {
     frameAccum += dt * 1000;
 
-    // Tick emulator at ~50Hz
     while (frameAccum >= FRAME_INTERVAL) {
       frameAccum -= FRAME_INTERVAL;
       tickEmulatorFrame();
     }
 
-    // Update monitor texture from WASM screen buffer
     const wasm = getWasm();
     const memory = getMemory();
     if (wasm && memory && isRunning()) {
@@ -54,15 +54,11 @@ async function main(): Promise<void> {
       updateBorderColor(entities.borderMaterial, wasm);
     }
 
-    // Update scene transition tweens
     updateTweens(dt);
-
-    // Update codex spin interaction
-    entities.codexInteraction.update(dt);
     frustumMarkers.update(dt);
   });
 
-  // 6. Wire global status function for media modules
+  // 6. Wire global status function
   setGlobalStatusFn(setStatusText);
 
   // 7. Load WASM and ROM
@@ -72,10 +68,14 @@ async function main(): Promise<void> {
   initInputBridge(app, entities);
   setSceneActor(sceneActor);
 
-  // Track menu open/close state for input routing + debug logging
-  sceneActor.subscribe((state) => {
+  // 9. Create MenuController and wire into input-bridge
+  const menuController = new MenuController();
+  setMenuController(menuController);
+
+  // 10. Track menu state via state machine
+  sceneActor.subscribe((state: any) => {
     const isMenu = state.value === 'menuPortrait' || state.value === 'menuLandscape';
-    setMenuOpen(isMenu);
+    if (isMenu) setMenuOpen(true);
     console.log(`[SceneMachine] state: ${String(state.value)} | context:`, {
       lastPortrait: state.context.lastPortraitScene,
       orientation: state.context.orientation,
@@ -83,35 +83,51 @@ async function main(): Promise<void> {
     });
   });
 
-  // 9. Initialize file handling (drag-drop + hidden file input)
+  // 11. Initialize file handling (drag-drop + hidden file input)
   initFileHandler();
 
-  // 10. Set initial viewport params for responsive layouts
+  // 12. Set initial viewport params
   function updateViewport(): void {
     const canvas = app.graphicsDevice.canvas;
     const aspect = canvas.clientWidth / canvas.clientHeight;
-    setViewportParams(45, aspect); // FOV matches camera
+    setViewportParams(45, aspect);
   }
   updateViewport();
 
-  // 11. Detect initial orientation and send to state machine
+  // 13. Detect initial orientation
   const orientation = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
   console.log(`[SceneMachine] initial orientation: ${orientation}`);
   if (orientation === 'landscape') {
     sceneActor.send({ type: 'ORIENTATION_CHANGE', orientation: 'landscape' });
   }
 
-  // 12. Listen for resize — update viewport params + snap positions + check orientation
+  // 14. Listen for resize
   let currentOrientation = orientation;
   window.addEventListener('resize', () => {
     updateViewport();
-    snapToCurrentScene(); // instantly reposition for new viewport
-
+    snapToCurrentScene();
     const newOrientation = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
     if (newOrientation !== currentOrientation) {
       console.log(`[SceneMachine] orientation change: ${currentOrientation} → ${newOrientation}`);
       currentOrientation = newOrientation;
       sceneActor.send({ type: 'ORIENTATION_CHANGE', orientation: newOrientation });
+    }
+  });
+
+  // 15. Session restore — load previous session state from IndexedDB
+  const savedImage = await db.loadCurrentImage();
+  if (savedImage) {
+    loadZ80(savedImage);
+    console.log('[Session] Restored previous session.');
+  }
+
+  // 16. Auto-save session state on page unload
+  window.addEventListener('beforeunload', () => {
+    if (isRomLoaded()) {
+      const data = captureZ80();
+      if (data.byteLength > 0) {
+        void db.saveCurrentImage(data);
+      }
     }
   });
 }

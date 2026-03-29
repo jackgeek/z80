@@ -55,10 +55,6 @@ export function snapToCurrentScene(): void {
     { entity: _entities.menuButton, target: layout.menuButton },
     { entity: _entities.camera, target: layout.camera },
   ];
-  if (_entities.menuCodex) {
-    entityMap.push({ entity: _entities.menuCodex, target: layout.menuCodex });
-  }
-
   for (const { entity, target } of entityMap) {
     if (target.visible === true) entity.enabled = true;
     entity.setLocalPosition(target.position[0], target.position[1], target.position[2]);
@@ -140,11 +136,6 @@ export function transitionToScene(
     { entity: entities.menuButton, target: layout.menuButton },
     { entity: entities.camera, target: layout.camera },
   ];
-
-  // Add codex if it exists
-  if (entities.menuCodex) {
-    entityMap.push({ entity: entities.menuCodex, target: layout.menuCodex });
-  }
 
   let completed = 0;
   const total = entityMap.length;
