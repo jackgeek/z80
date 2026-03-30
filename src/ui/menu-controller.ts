@@ -29,12 +29,12 @@ export class MenuController {
   }
 
   async open(): Promise<void> {
-    setPaused(true);
-    const snapshot = captureZ80();
-    if (snapshot.byteLength > 0) {
-      void db.saveCurrentImage(snapshot);
-    }
     try {
+      setPaused(true);
+      const snapshot = captureZ80();
+      if (snapshot.byteLength > 0) {
+        void db.saveCurrentImage(snapshot);
+      }
       const [tapes, joystickOverlay, joystickType, clockSpeed] = await Promise.all([
         db.getTapes(),
         db.getSetting('joystickOverlay'),
@@ -60,6 +60,7 @@ export class MenuController {
       setMenuOpen(true);
       this._showCurrent();
     } catch (e) {
+      setPaused(false);
       showStatus('Menu unavailable: ' + (e as Error).message);
     }
   }
