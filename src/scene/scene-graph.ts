@@ -103,8 +103,8 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   kbLightR.addComponent("light", {
     type: "point",
     color: new pc.Color(1.0, 1.0, 0.95),
-    intensity: 2.5,
-    range: 25,
+    intensity: 1.5,
+    range: 50,
     castShadows: false,
   });
   kbLightR.setLocalPosition(4, -1, 12);
