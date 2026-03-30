@@ -4,7 +4,7 @@ import type { MenuItem } from './menu-def.js';
 import { buildRootMenu } from './menu-def.js';
 import { MenuPanel } from './menu-panel.js';
 import { captureZ80, loadZ80 } from '../media/snapshot.js';
-import { loadTapeFile } from '../media/tape.js';
+import { loadTapeFile, extractZip } from '../media/tape.js';
 import { resetEmulator } from '../emulator/wasm-loader.js';
 import {
   isRomLoaded,
@@ -335,11 +335,36 @@ export class MenuController {
             return;
           }
 
-          const format: 'tap' | 'tzx' = lower.endsWith('.tzx') ? 'tzx' : 'tap';
+          let format: 'tap' | 'tzx' = lower.endsWith('.tzx') ? 'tzx' : 'tap';
+          let tapeData = data;
+
+          if (lower.endsWith('.zip')) {
+            const zipFiles = await extractZip(data);
+            const tapeFiles = zipFiles.filter(f => f.name.toLowerCase().endsWith('.tap') || f.name.toLowerCase().endsWith('.tzx'));
+            const tzxFiles = tapeFiles.filter(f => f.name.toLowerCase().endsWith('.tzx'));
+            const tapFiles = tapeFiles.filter(f => f.name.toLowerCase().endsWith('.tap'));
+
+            let chosen: { name: string; data: ArrayBuffer } | null = null;
+            if (tapeFiles.length === 0) {
+              showStatus('No .tap or .tzx file found inside ZIP.');
+              return;
+            } else if (tapeFiles.length === 1) {
+              chosen = tapeFiles[0];
+            } else if (tzxFiles.length === 1 && tapFiles.length === 1) {
+              chosen = tzxFiles[0];
+            } else {
+              showStatus('ZIP contains multiple tape files; include one TAP, one TZX, or a matching TAP+TZX pair.');
+              return;
+            }
+
+            format = chosen.name.toLowerCase().endsWith('.tzx') ? 'tzx' : 'tap';
+            tapeData = chosen.data;
+          }
+
           const defaultName = file.name.replace(/\.[^.]+$/, '');
           const name = window.prompt('Tape name:', defaultName) ?? defaultName;
 
-          const tapeId = await db.saveTape(name, data, format);
+          const tapeId = await db.saveTape(name, tapeData, format);
           await this._loadTape(tapeId);
           showStatus(`Imported: ${name}`);
         } catch (e) {
