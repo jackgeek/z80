@@ -316,7 +316,7 @@ export class MenuController {
   private _triggerFileImport(): void {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.tap,.tzx,.z80,.zip,.rom';
+    input.accept = '';
     input.style.display = 'none';
     document.body.appendChild(input);
 
@@ -327,8 +327,15 @@ export class MenuController {
           document.body.removeChild(input);
           if (!file) return;
 
-          const data = await file.arrayBuffer();
           const lower = file.name.toLowerCase();
+
+          const validExts = ['.tap', '.tzx', '.zip', '.z80', '.rom', '.bin'];
+          if (!validExts.some(ext => lower.endsWith(ext))) {
+            showStatus('Unsupported file. Expected TAP, TZX, ZIP, Z80, ROM, or BIN file.');
+            return;
+          }
+
+          const data = await file.arrayBuffer();
 
           if (lower.endsWith('.z80')) {
             loadZ80(data);

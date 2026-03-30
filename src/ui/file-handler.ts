@@ -48,6 +48,6 @@ async function handleFile(file: File): Promise<void> {
   } else if (name.endsWith('.tap') || name.endsWith('.tzx') || name.endsWith('.zip')) {
     await loadTapeFile(data, file.name);
   } else {
-    showStatus('Unknown file type: ' + file.name);
+    showStatus('Unsupported file type. Please use a TAP, TZX, ZIP, Z80, ROM, or BIN file.');
   }
 }
