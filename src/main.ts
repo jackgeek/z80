@@ -7,7 +7,8 @@ import { initWasm } from './emulator/wasm-loader.js';
 import { tickEmulatorFrame } from './emulator/frame-loop.js';
 import { updateMonitorTexture, updateBorderColor } from './entities/monitor.js';
 import { getWasm, getMemory, isRunning, isRomLoaded } from './emulator/state.js';
-import { initInputBridge, setSceneActor, setMenuController } from './input/input-bridge.js';
+import { initInputBridge, setSceneActor, setMenuController, setJoystickTypeCallback } from './input/input-bridge.js';
+import { JoystickOverlay } from './input/joystick-overlay.js';
 import { setGlobalStatusFn } from './ui/status-bridge.js';
 import { initFileHandler } from './ui/file-handler.js';
 import { createSceneMachineActor } from './state-machine/machine.js';
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
 
     updateTweens(dt);
     frustumMarkers.update(dt);
+    updateJoystickPositions();
   });
 
   // 6. Wire global status function
@@ -67,6 +69,13 @@ async function main(): Promise<void> {
   // 8. Initialize input system + wire state machine actor
   initInputBridge(app, entities);
   setSceneActor(sceneActor);
+
+  // 8b. Create joystick/fire HTML overlay and keep it aligned with 3D entities
+  const joystickOverlay = new JoystickOverlay();
+  setJoystickTypeCallback((type) => joystickOverlay.setJoystickType(type));
+  function updateJoystickPositions(): void {
+    joystickOverlay.updatePositions(app, entities.camera, entities.joystick, entities.fireButton);
+  }
 
   // 9. Create MenuController and wire into input-bridge
   const menuController = new MenuController();

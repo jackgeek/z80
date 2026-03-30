@@ -14,7 +14,7 @@ import {
 import { registerTapeDoneCallback } from '../emulator/frame-loop.js';
 import { typeLoadAndRun } from '../input/keyboard-macro.js';
 import { showStatus } from './status-bridge.js';
-import { setMenuOpen } from '../input/input-bridge.js';
+import { setMenuOpen, setJoystickType, type JoystickType } from '../input/input-bridge.js';
 
 export class MenuController {
   private panel: MenuPanel;
@@ -42,11 +42,13 @@ export class MenuController {
         db.getSetting('clockSpeed'),
       ]);
 
+      const resolvedJoystickType = (joystickType ?? 'sinclair1') as JoystickType;
       this.settingCache = {
         joystickOverlay: joystickOverlay ?? false,
-        joystickType: joystickType ?? 'sinclair1',
+        joystickType: resolvedJoystickType,
         clockSpeed: clockSpeed ?? 'normal',
       };
+      setJoystickType(resolvedJoystickType);
 
       const currentTapeId = getCurrentTapeId();
       let savesForCurrentTape: SaveItem[] = [];
@@ -137,6 +139,9 @@ export class MenuController {
       const value = parts.slice(2).join(':');
       await db.setSetting(key, value);
       this.settingCache[key] = value;
+      if (key === 'joystickType') {
+        setJoystickType(value as JoystickType);
+      }
       this.pop();
       return;
     }

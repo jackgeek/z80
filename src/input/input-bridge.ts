@@ -23,29 +23,7 @@ function ensureAudio(): void {
 let capsLatched = false;
 let symLatched = false;
 
-// Joystick state
 export type JoystickType = 'sinclair1' | 'cursor' | 'kempston';
-let joystickType: JoystickType = 'sinclair1';
-let joystickActive = false;
-let joystickDownX = 0;
-let joystickDownY = 0;
-let currentJoyDir: 'left' | 'right' | 'up' | 'down' | null = null;
-let kempstonByte = 0;
-let firePressed = false;
-
-const JOYSTICK_FIRE: Record<JoystickType, { row: number; bit: number }> = {
-  sinclair1: { row: 4, bit: 0x01 },
-  cursor:    { row: 4, bit: 0x01 },
-  kempston:  { row: 4, bit: 0x01 },
-};
-
-export function setJoystickType(type: JoystickType): void {
-  joystickType = type;
-}
-
-export function getJoystickType(): JoystickType {
-  return joystickType;
-}
 
 // State machine actor reference — set after creation
 let sceneActor: any = null;
@@ -74,6 +52,17 @@ let menuController: MenuController | null = null;
 
 export function setMenuController(ctrl: MenuController): void {
   menuController = ctrl;
+}
+
+// Joystick type — forwarded to the overlay
+let joystickTypeCallback: ((type: JoystickType) => void) | null = null;
+
+export function setJoystickTypeCallback(cb: (type: JoystickType) => void): void {
+  joystickTypeCallback = cb;
+}
+
+export function setJoystickType(type: JoystickType): void {
+  joystickTypeCallback?.(type);
 }
 
 export function initInputBridge(app: pc.Application, entities: SceneEntities): void {
@@ -175,70 +164,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   const pressedKeys = new Set<string>();
   let heldSpectrumKey: { row: number; bit: number; keyIndex: number | undefined } | null = null;
 
-  function releaseJoyDir(): void {
-    if (!currentJoyDir) return;
-    const wasm = getWasm();
-    if (!wasm) { currentJoyDir = null; return; }
-    const type = joystickType;
-    if (type === 'kempston') {
-      kempstonByte = 0;
-      wasm.setKempston(0);
-    } else if (type === 'sinclair1') {
-      const sinclair1Map: Record<string, { row: number; bit: number }> = {
-        left:  { row: 4, bit: 0x10 },
-        right: { row: 4, bit: 0x08 },
-        down:  { row: 4, bit: 0x04 },
-        up:    { row: 4, bit: 0x02 },
-      };
-      const k = sinclair1Map[currentJoyDir];
-      if (k) wasm.keyUp(k.row, k.bit);
-    } else {
-      // cursor — release Caps shift + direction key
-      wasm.keyUp(0, 0x01);
-      const cursorMap: Record<string, { row: number; bit: number }> = {
-        left:  { row: 3, bit: 0x10 },
-        right: { row: 4, bit: 0x04 },
-        down:  { row: 4, bit: 0x10 },
-        up:    { row: 4, bit: 0x08 },
-      };
-      const k = cursorMap[currentJoyDir];
-      if (k) wasm.keyUp(k.row, k.bit);
-    }
-    currentJoyDir = null;
-  }
-
-  function pressJoyDir(dir: 'left' | 'right' | 'up' | 'down'): void {
-    const wasm = getWasm();
-    if (!wasm) return;
-    const type = joystickType;
-    if (type === 'kempston') {
-      const bits: Record<string, number> = { right: 0x01, left: 0x02, down: 0x04, up: 0x08 };
-      kempstonByte = bits[dir] ?? 0;
-      wasm.setKempston(kempstonByte);
-    } else if (type === 'sinclair1') {
-      const sinclair1Map: Record<string, { row: number; bit: number }> = {
-        left:  { row: 4, bit: 0x10 },
-        right: { row: 4, bit: 0x08 },
-        down:  { row: 4, bit: 0x04 },
-        up:    { row: 4, bit: 0x02 },
-      };
-      const k = sinclair1Map[dir];
-      if (k) wasm.keyDown(k.row, k.bit);
-    } else {
-      // cursor — Caps shift + direction key
-      wasm.keyDown(0, 0x01);
-      const cursorMap: Record<string, { row: number; bit: number }> = {
-        left:  { row: 3, bit: 0x10 },
-        right: { row: 4, bit: 0x04 },
-        down:  { row: 4, bit: 0x10 },
-        up:    { row: 4, bit: 0x08 },
-      };
-      const k = cursorMap[dir];
-      if (k) wasm.keyDown(k.row, k.bit);
-    }
-    currentJoyDir = dir;
-  }
-
   function releaseHeldKey(): void {
     if (!heldSpectrumKey) return;
     const wasm = getWasm();
@@ -281,23 +206,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
     }
   }
 
-  function projectToScreen(entity: pc.Entity): { x: number; y: number } | null {
-    const cam = camera.camera!;
-    const worldPos = entity.getPosition();
-    const screenPos = new pc.Vec3();
-    cam.worldToScreen(worldPos, screenPos);
-    // screenPos is in CSS pixels from top-left of canvas
-    return { x: screenPos.x, y: screenPos.y };
-  }
-
-  function hitTestEntity(entity: pc.Entity, screenX: number, screenY: number, radiusPx: number): boolean {
-    const proj = projectToScreen(entity);
-    if (!proj) return false;
-    const dx = screenX - proj.x;
-    const dy = screenY - proj.y;
-    return dx * dx + dy * dy <= radiusPx * radiusPx;
-  }
-
   function handlePointerDown(screenX: number, screenY: number): void {
     const wasm = getWasm();
     if (!wasm || !isRunning()) return;
@@ -309,26 +217,15 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       return;
     }
 
-    // 1 inch hit area: 96 CSS px/inch → radius = 48px
-    const hitRadius = 48;
-
-    if (hitTestEntity(entities.fireButton, screenX, screenY, hitRadius)) {
-      const fireKey = JOYSTICK_FIRE[joystickType];
-      wasm.keyDown(fireKey.row, fireKey.bit);
-      firePressed = true;
-      animateKeyPress(entities.fireButtonCap, true);
-      return;
-    }
-
-    if (hitTestEntity(entities.menuButton, screenX, screenY, hitRadius)) {
+    // Menu button hit test (screen-projected, 1-inch radius)
+    const cam = camera.camera!;
+    const menuWorld = entities.menuButton.getPosition();
+    const menuScreen = new pc.Vec3();
+    cam.worldToScreen(menuWorld, menuScreen);
+    const mdx = screenX - menuScreen.x;
+    const mdy = screenY - menuScreen.y;
+    if (mdx * mdx + mdy * mdy <= 48 * 48) {
       void menuController?.open();
-      return;
-    }
-
-    if (hitTestEntity(entities.joystick, screenX, screenY, hitRadius)) {
-      joystickActive = true;
-      joystickDownX = screenX;
-      joystickDownY = screenY;
       return;
     }
   }
@@ -336,16 +233,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
   function handlePointerUp(_screenX: number, _screenY: number): void {
     const wasm = getWasm();
     if (!wasm) return;
-
-    if (firePressed) {
-      const fireKey = JOYSTICK_FIRE[joystickType];
-      wasm.keyUp(fireKey.row, fireKey.bit);
-      firePressed = false;
-      animateKeyPress(entities.fireButtonCap, false);
-    }
-
-    releaseJoyDir();
-    joystickActive = false;
 
     for (const name of pressedKeys) {
       const entity = findEntityByName(app.root, name);
@@ -390,35 +277,14 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
       gestureDetector.beginTracking(screenY, viewportH);
     }
 
-    // Always handle joystick/fire/menu/menuClose detection on pointer down
     handlePointerDown(screenX, screenY);
 
-    // Spectrum key press only fires if no control was activated
-    if (!joystickActive && !firePressed && !menuOpen) {
+    if (!menuOpen) {
       pressSpectrumKey(screenX, screenY);
     }
   }
 
   function pointerMove(screenX: number, screenY: number): void {
-    if (joystickActive) {
-      const dx = screenX - joystickDownX;
-      const dy = screenY - joystickDownY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 20) {
-        releaseJoyDir();
-      } else {
-        const dir: 'left' | 'right' | 'up' | 'down' =
-          Math.abs(dx) >= Math.abs(dy)
-            ? (dx < 0 ? 'left' : 'right')
-            : (dy < 0 ? 'up' : 'down');
-        if (dir !== currentJoyDir) {
-          releaseJoyDir();
-          pressJoyDir(dir);
-        }
-      }
-      return;
-    }
-
     if (heldSpectrumKey) {
       const dx = screenX - pendingDownX;
       const dy = screenY - pendingDownY;
@@ -485,14 +351,6 @@ export function initInputBridge(app: pc.Application, entities: SceneEntities): v
 
   canvas.addEventListener('touchcancel', () => {
     releaseAllKeys();
-    releaseJoyDir();
-    joystickActive = false;
-    if (firePressed) {
-      const wasm = getWasm();
-      if (wasm) wasm.keyUp(JOYSTICK_FIRE[joystickType].row, JOYSTICK_FIRE[joystickType].bit);
-      firePressed = false;
-      animateKeyPress(entities.fireButtonCap, false);
-    }
   });
 }
 
@@ -531,7 +389,7 @@ function raycastFromScreen(
     }
   }
 
-  const otherTags = ['fire-button', 'menu-button', 'joystick', 'screen'];
+  const otherTags = ['screen'];
   for (const tag of otherTags) {
     const tagEntities = app.root.findByTag(tag) as pc.Entity[];
     for (const entity of tagEntities) {
