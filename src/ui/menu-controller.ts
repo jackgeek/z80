@@ -298,7 +298,7 @@ export class MenuController {
       showStatus('Fetching…');
       const fetchUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
       const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`.trim());
       const data = await res.arrayBuffer();
 
       const header = new Uint8Array(data, 0, Math.min(8, data.byteLength));
@@ -309,7 +309,7 @@ export class MenuController {
       await this._loadTape(tapeId);
       showStatus(`Imported: ${name}`);
     } catch (e) {
-      showStatus('Import error: ' + (e as Error).message);
+      showStatus(`Import failed: ${(e as Error).message}. URL imports rely on a CORS proxy (allorigins.win) — some URLs may not be supported.`);
     }
   }
 
