@@ -373,10 +373,22 @@ export async function loadTapeFile(data: ArrayBuffer, filename: string): Promise
   try {
     if (name.endsWith('.zip') || (!name.endsWith('.tap') && !name.endsWith('.tzx') && isZipContent)) {
       const files = await extractZip(data);
-      const entry = files.find(f => f.name.endsWith('.tap') || f.name.endsWith('.tzx'));
-      if (!entry) {
+      const tapeFiles = files.filter(f => f.name.endsWith('.tap') || f.name.endsWith('.tzx'));
+      let entry: { name: string; data: ArrayBuffer } | undefined;
+      if (tapeFiles.length === 0) {
         showStatus('No .tap or .tzx file found inside ZIP.');
         return;
+      } else if (tapeFiles.length === 1) {
+        entry = tapeFiles[0];
+      } else {
+        const tzxFiles = tapeFiles.filter(f => f.name.endsWith('.tzx'));
+        const tapFiles = tapeFiles.filter(f => f.name.endsWith('.tap'));
+        if (tzxFiles.length === 1 && tapFiles.length === 1) {
+          entry = tzxFiles[0];
+        } else {
+          showStatus('ZIP contains multiple tape files; include one TAP, one TZX, or a matching TAP+TZX pair.');
+          return;
+        }
       }
       isTzx = entry.name.endsWith('.tzx');
       if (isTzx) tzxSource = entry.data;
