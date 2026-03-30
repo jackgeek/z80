@@ -86,18 +86,29 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   rimLight.setLocalPosition(0, 4, -3);
   lighting.addChild(rimLight);
 
-  // Keyboard fill light — point light behind and slightly above the camera,
-  // offset left to give some depth, shines forward onto the keyboard face
-  const kbLight = new pc.Entity("KeyboardLight");
-  kbLight.addComponent("light", {
+  // Keyboard fill lights — two point lights flanking the camera, centred on
+  // the keyboard area so the full key grid is evenly lit from the front
+  const kbLightL = new pc.Entity("KeyboardLightL");
+  kbLightL.addComponent("light", {
     type: "point",
     color: new pc.Color(1.0, 1.0, 0.95),
-    intensity: 1.5,
-    range: 20,
+    intensity: 2.5,
+    range: 25,
     castShadows: false,
   });
-  kbLight.setLocalPosition(-5, 0, 15);
-  lighting.addChild(kbLight);
+  kbLightL.setLocalPosition(-4, -1, 12);
+  lighting.addChild(kbLightL);
+
+  const kbLightR = new pc.Entity("KeyboardLightR");
+  kbLightR.addComponent("light", {
+    type: "point",
+    color: new pc.Color(1.0, 1.0, 0.95),
+    intensity: 2.5,
+    range: 25,
+    castShadows: false,
+  });
+  kbLightR.setLocalPosition(4, -1, 12);
+  lighting.addChild(kbLightR);
 
   app.root.addChild(lighting);
 
