@@ -7,7 +7,7 @@ import { captureZ80, loadZ80 } from '../media/snapshot.js';
 import { loadTapeFile, extractZip } from '../media/tape.js';
 import { resetEmulator } from '../emulator/wasm-loader.js';
 import {
-  isRomLoaded,
+  isRomLoaded, setPaused,
   getCurrentTapeId, setCurrentTapeId,
   getCurrentTapeData, setCurrentTapeData,
 } from '../emulator/state.js';
@@ -29,6 +29,11 @@ export class MenuController {
   }
 
   async open(): Promise<void> {
+    setPaused(true);
+    const snapshot = captureZ80();
+    if (snapshot.byteLength > 0) {
+      void db.saveCurrentImage(snapshot);
+    }
     try {
       const [tapes, joystickOverlay, joystickType, clockSpeed] = await Promise.all([
         db.getTapes(),
@@ -64,6 +69,7 @@ export class MenuController {
     this.stackTitles = [];
     this.panel.hide();
     setMenuOpen(false);
+    setPaused(false);
   }
 
   push(items: MenuItem[], title: string): void {
