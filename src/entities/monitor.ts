@@ -97,10 +97,10 @@ export function createMonitor(app: pc.Application): MonitorResult {
   monitor.addChild(borderPlane);
   borderPlane.tags.add('screen');
 
-  // ── Screen quad (fills full monitor entity including border area) ────────
+  // ── Screen quad (256x192 main display, on top of border) ──────────────
   const screenQuad = new pc.Entity('ScreenQuad');
   screenQuad.addComponent('render', { type: 'plane' });
-  screenQuad.setLocalScale(BORDER_W, 1, BORDER_H);
+  screenQuad.setLocalScale(SCREEN_W, 1, SCREEN_H);
   screenQuad.setLocalEulerAngles(90, 0, 0);
   screenQuad.setLocalPosition(0, 0, 0.07);
   screenQuad.render!.meshInstances[0].material = screenMat;
