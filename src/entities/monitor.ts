@@ -1,21 +1,18 @@
 // 3D CRT monitor with brass steampunk frame and dynamic WASM screen texture
 
 import * as pc from 'playcanvas';
-import { createBrassMaterial } from '../materials/brass.js';
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../emulator/state.js';
 import type { WasmExports } from '../emulator/wasm-types.js';
 
 const SCREEN_BYTES = SCREEN_WIDTH * SCREEN_HEIGHT * 4;
 
 // The full monitor opening includes border area around the 256x192 pixels.
-// Real Spectrum: 256x192 main area inside a ~352x296 total area (48px border each side).
-// We scale proportionally: border is ~37% of screen width on each side.
-const BORDER_FRACTION = 0.30; // how much larger the border area is vs the screen
+// Real ZX Spectrum: 32px border on each side of 256px display = 32/256 = 0.125.
+const BORDER_FRACTION = 0.125; // how much larger the border area is vs the screen
 const SCREEN_W = 2.0;   // main 256x192 display width in world units
 const SCREEN_H = 1.5;   // main display height
 const BORDER_W = SCREEN_W * (1 + BORDER_FRACTION);  // full opening width including border
 const BORDER_H = SCREEN_H * (1 + BORDER_FRACTION);  // full opening height
-const BEZEL = 0.12;
 
 // ZX Spectrum border palette (same as original)
 const BORDER_COLORS: pc.Color[] = [
@@ -57,7 +54,6 @@ upscaledCtx.imageSmoothingEnabled = false;
 
 export function createMonitor(app: pc.Application): MonitorResult {
   const device = app.graphicsDevice;
-  const brassMat = createBrassMaterial(device);
   const monitor = new pc.Entity('Monitor');
   monitor.tags.add('swipeable');
 
@@ -110,74 +106,6 @@ export function createMonitor(app: pc.Application): MonitorResult {
   screenQuad.render!.meshInstances[0].material = screenMat;
   monitor.addChild(screenQuad);
   screenQuad.tags.add('screen');
-
-  // ── Brass bezel frame ─────────────────────────────────────────────────────
-  const halfW = BORDER_W / 2 + BEZEL;
-  const halfH = BORDER_H / 2 + BEZEL;
-  const depth = 0.12;
-
-  // Back plate (solid brass behind the border area)
-  const backPlate = new pc.Entity('BackPlate');
-  backPlate.addComponent('render', { type: 'box' });
-  backPlate.setLocalScale(BORDER_W + BEZEL * 2, BORDER_H + BEZEL * 2, depth);
-  backPlate.setLocalPosition(0, 0, 0);
-  backPlate.render!.meshInstances[0].material = brassMat;
-  monitor.addChild(backPlate);
-
-  // Top bezel
-  const topBezel = new pc.Entity('TopBezel');
-  topBezel.addComponent('render', { type: 'box' });
-  topBezel.setLocalScale(BORDER_W + BEZEL * 4, BEZEL, depth + 0.04);
-  topBezel.setLocalPosition(0, halfH, 0.02);
-  topBezel.render!.meshInstances[0].material = brassMat;
-  monitor.addChild(topBezel);
-
-  // Bottom bezel
-  const bottomBezel = new pc.Entity('BottomBezel');
-  bottomBezel.addComponent('render', { type: 'box' });
-  bottomBezel.setLocalScale(BORDER_W + BEZEL * 4, BEZEL, depth + 0.04);
-  bottomBezel.setLocalPosition(0, -halfH, 0.02);
-  bottomBezel.render!.meshInstances[0].material = brassMat;
-  monitor.addChild(bottomBezel);
-
-  // Left bezel
-  const leftBezel = new pc.Entity('LeftBezel');
-  leftBezel.addComponent('render', { type: 'box' });
-  leftBezel.setLocalScale(BEZEL, BORDER_H + BEZEL * 4, depth + 0.04);
-  leftBezel.setLocalPosition(-halfW, 0, 0.02);
-  leftBezel.render!.meshInstances[0].material = brassMat;
-  monitor.addChild(leftBezel);
-
-  // Right bezel
-  const rightBezel = new pc.Entity('RightBezel');
-  rightBezel.addComponent('render', { type: 'box' });
-  rightBezel.setLocalScale(BEZEL, BORDER_H + BEZEL * 4, depth + 0.04);
-  rightBezel.setLocalPosition(halfW, 0, 0.02);
-  rightBezel.render!.meshInstances[0].material = brassMat;
-  monitor.addChild(rightBezel);
-
-  // ── Rivets at corners ─────────────────────────────────────────────────────
-  const rivetPositions: [number, number][] = [
-    [-halfW, halfH], [halfW, halfH], [-halfW, -halfH], [halfW, -halfH]
-  ];
-  for (const [x, y] of rivetPositions) {
-    const rivet = new pc.Entity('Rivet');
-    rivet.addComponent('render', { type: 'sphere' });
-    rivet.setLocalScale(0.08, 0.08, 0.08);
-    rivet.setLocalPosition(x, y, 0.08);
-    rivet.render!.meshInstances[0].material = brassMat;
-    monitor.addChild(rivet);
-  }
-
-  // ── Steam pipes along sides ───────────────────────────────────────────────
-  for (const side of [-1, 1]) {
-    const pipe = new pc.Entity('SteamPipe');
-    pipe.addComponent('render', { type: 'cylinder' });
-    pipe.setLocalScale(0.06, BORDER_H * 0.8, 0.06);
-    pipe.setLocalPosition(side * (halfW + 0.08), 0, 0);
-    pipe.render!.meshInstances[0].material = brassMat;
-    monitor.addChild(pipe);
-  }
 
   return { monitorEntity: monitor, screenQuad, screenTexture, borderMaterial: borderMat };
 }
