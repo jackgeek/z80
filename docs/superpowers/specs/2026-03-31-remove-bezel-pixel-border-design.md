@@ -19,12 +19,14 @@ The real ZX Spectrum has a 32px border on each side around the 256×192 display:
 
 Both axes are identical, so a single scalar fraction remains correct.
 
-**2. Delete all bezel geometry** (~55 lines):
+**2. Delete all bezel geometry** (~70 lines):
 - `backPlate` entity (solid brass back)
 - `topBezel`, `bottomBezel`, `leftBezel`, `rightBezel` entities
 - Corner rivets loop (4 spheres)
 - Steam pipes loop (2 cylinders)
 - `createBrassMaterial` import (no longer used)
+- `const brassMat = createBrassMaterial(device)` usage
+- `const BEZEL = 0.12` constant (no longer used)
 
 **What stays:**
 - `borderPlane` — renders the ZX Spectrum border color (dynamic, driven by WASM)
@@ -36,7 +38,14 @@ Both axes are identical, so a single scalar fraction remains correct.
 - `scene-layouts.ts` — `MONITOR_UNIT_W/H` layout constants remain valid
 - Texture update and border color logic — untouched
 - All other entities (keyboard, joystick, fire button, menu button)
+- `src/materials/brass.ts` — still used by other entities (menu-button, joystick3d, fire-button)
 
 ## Result
 
 The monitor entity becomes two flat quads — border color plane + screen — with no 3D decorations. The screen fills significantly more of its allocated layout space in every scene (portrait, landscape, menu).
+
+## Implementation Notes
+
+- `BORDER_FRACTION` comment clarified to "per-side border fraction: 32px / 256px = 0.125" to avoid ambiguity about whether the fraction is total or per-side
+- File-level comment updated from "3D CRT monitor with brass steampunk frame…" to "3D monitor with dynamic WASM screen texture"
+- Commits: `99ebb53`, `62c7f80`, `aa1511e`
