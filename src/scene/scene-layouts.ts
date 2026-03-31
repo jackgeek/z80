@@ -120,14 +120,22 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
       };
     }
     case 'landscape': {
-      const panelGap     = usableW * 0.03;
-      const halfPanelW   = (usableW - panelGap) / 2;
-      const leftCenterX  = left  + halfPanelW / 2;
-      const rightCenterX = right - halfPanelW / 2;
+      const panelGap = usableW * 0.03;
+      const availW   = usableW - panelGap;
 
-      // Each element fills the full content height in its half-panel
-      const monScale = Math.min(contentH / MONITOR_UNIT_H, halfPanelW / MONITOR_UNIT_W);
-      const kbScale  = Math.min(contentH / KB_UNIT_H,      halfPanelW / KB_UNIT_W);
+      // Distribute width proportional to each entity's aspect ratio so both
+      // fill their panel without wasted space.
+      const monAR    = MONITOR_UNIT_W / MONITOR_UNIT_H;
+      const kbAR     = KB_UNIT_W      / KB_UNIT_H;
+      const totalAR  = monAR + kbAR;
+      const monPanelW = availW * (monAR / totalAR);
+      const kbPanelW  = availW * (kbAR  / totalAR);
+
+      const leftCenterX  = left  + monPanelW / 2;
+      const rightCenterX = right - kbPanelW  / 2;
+
+      const monScale = Math.min(contentH / MONITOR_UNIT_H, monPanelW / MONITOR_UNIT_W);
+      const kbScale  = Math.min(contentH / KB_UNIT_H,      kbPanelW  / KB_UNIT_W);
       const ms: [number, number, number] = [monScale, monScale, monScale];
       const ks: [number, number, number] = [kbScale,  kbScale,  kbScale];
 
@@ -177,13 +185,18 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
 
       // Derive background element scales from the landscape fit-to-space values × elementShrink
       const panelGap     = usableW * 0.03;
-      const halfPanelW   = (usableW - panelGap) / 2;
-      const leftCenterX  = left  + halfPanelW / 2;
-      const rightCenterX = right - halfPanelW / 2;
+      const availW       = usableW - panelGap;
+      const monAR        = MONITOR_UNIT_W / MONITOR_UNIT_H;
+      const kbAR         = KB_UNIT_W      / KB_UNIT_H;
+      const totalAR      = monAR + kbAR;
+      const monPanelW    = availW * (monAR / totalAR);
+      const kbPanelW     = availW * (kbAR  / totalAR);
+      const leftCenterX  = left  + monPanelW / 2;
+      const rightCenterX = right - kbPanelW  / 2;
       const centerY      = contentBottom + contentH / 2;
 
-      const monScale = Math.min(contentH / MONITOR_UNIT_H, halfPanelW / MONITOR_UNIT_W);
-      const kbScale  = Math.min(contentH / KB_UNIT_H,      halfPanelW / KB_UNIT_W);
+      const monScale = Math.min(contentH / MONITOR_UNIT_H, monPanelW / MONITOR_UNIT_W);
+      const kbScale  = Math.min(contentH / KB_UNIT_H,      kbPanelW  / KB_UNIT_W);
       const smallMs: [number, number, number] = [monScale * elementShrink, monScale * elementShrink, monScale * elementShrink];
       const smallKs: [number, number, number] = [kbScale  * elementShrink, kbScale  * elementShrink, kbScale  * elementShrink];
       const cs06:    [number, number, number] = [ctrlScale * ctrlShrink, ctrlScale * ctrlShrink, ctrlScale * ctrlShrink];
