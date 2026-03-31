@@ -8,7 +8,7 @@ const SCREEN_BYTES = SCREEN_WIDTH * SCREEN_HEIGHT * 4;
 
 // The full monitor opening includes border area around the 256x192 pixels.
 // Real ZX Spectrum: 32px border on each side of 256px display = 32/256 = 0.125.
-const BORDER_FRACTION = 0.125; // how much larger the border area is vs the screen
+const BORDER_FRACTION = 0.125; // per-side border fraction: 32px / 256px = 0.125
 const SCREEN_W = 2.0;   // main 256x192 display width in world units
 const SCREEN_H = 1.5;   // main display height
 const BORDER_W = SCREEN_W * (1 + BORDER_FRACTION);  // full opening width including border
