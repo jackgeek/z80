@@ -35,7 +35,6 @@ Both axes are identical, so a single scalar fraction remains correct.
 ## What Does NOT Change
 
 - `SCREEN_W`, `SCREEN_H` — world-space display dimensions unchanged
-- `scene-layouts.ts` — `MONITOR_UNIT_W/H` layout constants remain valid
 - Texture update and border color logic — untouched
 - All other entities (keyboard, joystick, fire button, menu button)
 - `src/materials/brass.ts` — still used by other entities (menu-button, joystick3d, fire-button)
@@ -49,3 +48,13 @@ The monitor entity becomes two flat quads — border color plane + screen — wi
 - `BORDER_FRACTION` comment clarified to "per-side border fraction: 32px / 256px = 0.125" to avoid ambiguity about whether the fraction is total or per-side
 - File-level comment updated from "3D CRT monitor with brass steampunk frame…" to "3D monitor with dynamic WASM screen texture"
 - Commits: `99ebb53`, `62c7f80`, `aa1511e`
+
+## Post-Implementation Fixes
+
+### `src/scene/scene-layouts.ts`
+
+**`MONITOR_UNIT_W/H` updated** (`a77edaf`) — old values (`3.08 × 2.2`) were sized for the bezel; updated to actual border quad dimensions: `BORDER_W × BORDER_H = 2.25 × 1.6875`.
+
+**Landscape panel widths split by aspect ratio** (`ae2de13`) — changed from equal 50/50 split to proportional split based on each entity's AR (`monAR / (monAR + kbAR)`) so both monitor and keyboard fill their panels without wasted space.
+
+**Top-align monitor and keyboard in landscape** (`fff3aa7`) — entities are now aligned to the top of the content area (`top - entityH/2`) rather than vertically centred, so the monitor fills its panel and background gap appears only below both entities above the controls row.
