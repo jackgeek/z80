@@ -1,4 +1,4 @@
-// 3D CRT monitor with brass steampunk frame and dynamic WASM screen texture
+// 3D monitor with dynamic WASM screen texture
 
 import * as pc from 'playcanvas';
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../emulator/state.js';
