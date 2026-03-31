@@ -40,8 +40,9 @@ const MARGIN = 0.08;
 const GAP = 0.06;
 
 // Monitor world-space dimensions at entity scale 1
-const MONITOR_UNIT_W = 3.08;
-const MONITOR_UNIT_H = 2.2;
+// Border quad: SCREEN_W * (1 + 0.125) = 2.25, SCREEN_H * (1 + 0.125) = 1.6875
+const MONITOR_UNIT_W = 2.25;
+const MONITOR_UNIT_H = 1.6875;
 
 // Keyboard world-space dimensions at entity scale 1
 // GLB model has internal 13.2× scale: width = 0.233×13.2, height = 0.146×13.2
