@@ -139,11 +139,14 @@ export function computeLayout(sceneName: string, fovDeg: number, aspect: number)
       const ms: [number, number, number] = [monScale, monScale, monScale];
       const ks: [number, number, number] = [kbScale,  kbScale,  kbScale];
 
-      const centerY = contentBottom + contentH / 2;
+      // Align each entity to the top of the content area so they share a common
+      // top edge and the background gap appears only at the bottom, not around them.
+      const monCenterY = top - (MONITOR_UNIT_H * monScale) / 2;
+      const kbCenterY  = top - (KB_UNIT_H      * kbScale)  / 2;
 
       return {
-        monitor:    { position: [leftCenterX,  centerY, 0], rotation: FLAT, scale: ms, visible: true },
-        keyboard:   { position: [rightCenterX, centerY, 0], rotation: FLAT, scale: ks, visible: true },
+        monitor:    { position: [leftCenterX,  monCenterY, 0], rotation: FLAT, scale: ms, visible: true },
+        keyboard:   { position: [rightCenterX, kbCenterY,  0], rotation: FLAT, scale: ks, visible: true },
         joystick:   { position: [left * 0.7,  ctrlY, 0],    rotation: FLAT, scale: cs, visible: true },
         fireButton: { position: [right * 0.7, ctrlY, 0.4],  rotation: FLAT, scale: cs, visible: true },
         menuButton: { position: [0,     ctrlY, 0.4],        rotation: FLAT, scale: cs, visible: true },
