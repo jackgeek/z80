@@ -453,9 +453,6 @@ export function createLightEditor(app: pc.Application): void {
 
   let resetCamera: () => void = () => {};
 
-  refreshRows();
-  selectLight(0);
-
   document.body.appendChild(panel);
 
   // Drag
@@ -467,11 +464,57 @@ export function createLightEditor(app: pc.Application): void {
     destroyGizmos();
     removeEventListeners();
   }
-  closeBtn.addEventListener('click', destroy);
 
   // Placeholder — filled in later tasks
   let destroyGizmos: () => void = () => {};
   let removeEventListeners: () => void = () => {};
+
+  closeBtn.addEventListener('click', destroy);
+
+  // ── Add / Delete lights ───────────────────────────────────────────────────
+  let createGizmo: (ls: LightState) => pc.Entity | null = (_ls) => null;
+
+  addLight = function(type: 'point' | 'directional' | 'spot'): void {
+    const lightingEntity = app.root.findByName('Lighting')!;
+    const entity = new pc.Entity(`Light${lights.length + 1}`);
+    entity.addComponent('light', {
+      type,
+      color: new pc.Color(1, 1, 1),
+      intensity: 1.0,
+      castShadows: false,
+      ...(type !== 'directional' ? { range: 10 } : {}),
+    });
+    lightingEntity.addChild(entity);
+
+    const ls: LightState = {
+      name: entity.name,
+      type,
+      color: new pc.Color(1, 1, 1),
+      intensity: 1.0,
+      position: new pc.Vec3(0, 0, 0),
+      range: 10,
+      eulerAngles: new pc.Vec3(0, 0, 0),
+      entity,
+      gizmoEntity: null,
+    };
+    lights.push(ls);
+    ls.gizmoEntity = createGizmo(ls);
+    refreshRows();
+    selectLight(lights.length - 1);
+  };
+
+  deleteLight = function(i: number): void {
+    const ls = lights[i];
+    if (!ls) return;
+    ls.entity.destroy();
+    if (ls.gizmoEntity) ls.gizmoEntity.destroy();
+    lights.splice(i, 1);
+    refreshRows();
+    selectLight(Math.min(i, lights.length - 1));
+  };
+
+  refreshRows();
+  selectLight(0);
 
   console.log('[LightEditor] opened with', lights.length, 'lights');
 }
