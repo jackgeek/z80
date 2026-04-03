@@ -403,6 +403,56 @@ export function createLightEditor(app: pc.Application): void {
   let updateGizmoTransform: (ls: LightState) => void = () => {};
   let deleteLight: (i: number) => void = () => {};
 
+  // ── applyToScene (real implementation) ───────────────────────────────────
+  applyToScene = function(ls: LightState): void {
+    const lc = ls.entity.light;
+    if (!lc) return;
+    lc.color = ls.color;
+    lc.intensity = ls.intensity;
+    if (ls.type !== 'directional') {
+      (lc as any).range = ls.range;
+      ls.entity.setLocalPosition(ls.position.x, ls.position.y, ls.position.z);
+    } else {
+      ls.entity.setLocalEulerAngles(ls.eulerAngles.x, ls.eulerAngles.y, ls.eulerAngles.z);
+    }
+  };
+
+  // ── Footer ───────────────────────────────────────────────────────────────
+  const footer = document.createElement('div');
+  Object.assign(footer.style, {
+    borderTop: '1px solid #2a2a3e', padding: '8px 10px',
+    display: 'flex', flexDirection: 'column', gap: '6px',
+  });
+
+  const exportBtn = document.createElement('button');
+  exportBtn.textContent = 'Copy TS to clipboard';
+  Object.assign(exportBtn.style, {
+    fontSize: '11px', background: '#1a3a1a', color: '#88ff88',
+    border: '1px solid #226622', borderRadius: '4px', padding: '6px', cursor: 'pointer',
+  });
+  exportBtn.addEventListener('click', () => {
+    const ts = generateTypeScript(lights);
+    navigator.clipboard.writeText(ts).then(() => {
+      exportBtn.textContent = '✓ Copied!';
+      setTimeout(() => { exportBtn.textContent = 'Copy TS to clipboard'; }, 2000);
+    });
+  });
+  footer.appendChild(exportBtn);
+
+  const resetCamBtn = document.createElement('button');
+  resetCamBtn.textContent = 'Reset camera';
+  Object.assign(resetCamBtn.style, {
+    fontSize: '11px', background: '#1a1a3a', color: '#8888ff',
+    border: '1px solid #224466', borderRadius: '4px', padding: '6px', cursor: 'pointer',
+    display: 'none',
+  });
+  resetCamBtn.addEventListener('click', () => resetCamera());
+  footer.appendChild(resetCamBtn);
+
+  panel.appendChild(footer);
+
+  let resetCamera: () => void = () => {};
+
   refreshRows();
   selectLight(0);
 
@@ -451,4 +501,35 @@ function makeDraggable(panel: HTMLElement, handle: HTMLElement): void {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   });
+}
+
+function generateTypeScript(lights: LightState[]): string {
+  const f = (v: number) => parseFloat(v.toFixed(3)).toString();
+
+  const blocks = lights.map(ls => {
+    const varName = ls.name.charAt(0).toLowerCase() + ls.name.slice(1);
+    const colorArgs = `${f(ls.color.r)}, ${f(ls.color.g)}, ${f(ls.color.b)}`;
+    let props = `  type: "${ls.type}",\n  color: new pc.Color(${colorArgs}),\n  intensity: ${f(ls.intensity)},\n  castShadows: false,`;
+    if (ls.type !== 'directional') props += `\n  range: ${f(ls.range)},`;
+    let transform = '';
+    if (ls.type === 'directional') {
+      transform = `${varName}.setLocalEulerAngles(${f(ls.eulerAngles.x)}, ${f(ls.eulerAngles.y)}, ${f(ls.eulerAngles.z)});`;
+    } else {
+      transform = `${varName}.setLocalPosition(${f(ls.position.x)}, ${f(ls.position.y)}, ${f(ls.position.z)});`;
+    }
+    return [
+      `const ${varName} = new pc.Entity("${ls.name}");`,
+      `${varName}.addComponent("light", {\n${props}\n});`,
+      transform,
+      `lighting.addChild(${varName});`,
+    ].join('\n');
+  });
+
+  return [
+    '// ── Lighting ──────────────────────────────────────────────────────────────',
+    'const lighting = new pc.Entity("Lighting");',
+    '',
+    ...blocks.flatMap(b => [b, '']),
+    'app.root.addChild(lighting);',
+  ].join('\n');
 }
