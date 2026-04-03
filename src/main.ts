@@ -137,6 +137,12 @@ async function main(): Promise<void> {
       }
     }
   });
+
+  // DEV: light editor — open with __le() in the browser console
+  if (import.meta.env.DEV) {
+    const { createLightEditor } = await import('./debug/light-editor.js');
+    (window as any).__le = () => createLightEditor(app);
+  }
 }
 
 main().catch(console.error);
