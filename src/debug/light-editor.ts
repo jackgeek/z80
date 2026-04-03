@@ -706,6 +706,116 @@ export function createLightEditor(app: pc.Application): void {
     canvas.removeEventListener('wheel', onWheel);
   };
 
+  // ── Camera navigation ─────────────────────────────────────────────────────
+  const cameraRig   = app.root.findByName('CameraRig') as pc.Entity;
+  const cameraLocal = app.root.findByName('MainCamera') as pc.Entity;
+
+  const initRigPos   = cameraRig.getLocalPosition().clone();
+  const initRigEuler = cameraRig.getLocalEulerAngles().clone();
+  const initCamZ     = cameraLocal.getLocalPosition().z;
+
+  let rigYaw   = initRigEuler.y;
+  let rigPitch = initRigEuler.x;
+  let camZ     = initCamZ;
+  const rigPos = initRigPos.clone();
+
+  function applyCameraTransform(): void {
+    cameraRig.setLocalPosition(rigPos.x, rigPos.y, rigPos.z);
+    cameraRig.setLocalEulerAngles(rigPitch, rigYaw, 0);
+    cameraLocal.setLocalPosition(0, 0, camZ);
+    console.log(
+      `[LightEditor] camera  rig=(${rigPos.x.toFixed(2)}, ${rigPos.y.toFixed(2)}, ${rigPos.z.toFixed(2)})` +
+      `  rot=(${rigPitch.toFixed(2)}, ${rigYaw.toFixed(2)}, 0.00)  cam-z=${camZ.toFixed(2)}`
+    );
+  }
+
+  resetCamera = function(): void {
+    rigYaw   = initRigEuler.y;
+    rigPitch = initRigEuler.x;
+    camZ     = initCamZ;
+    rigPos.copy(initRigPos);
+    applyCameraTransform();
+  };
+
+  let midDragActive = false;
+  let midLastX = 0, midLastY = 0;
+  const ORBIT_SPEED = 0.4;
+  const PAN_SPEED   = 0.01;
+
+  function onMouseDownCam(e: MouseEvent): void {
+    if (mode !== 'camera') return;
+    if (e.button !== 1) return;
+    e.preventDefault();
+    midDragActive = true;
+    midLastX = e.clientX;
+    midLastY = e.clientY;
+  }
+
+  function onMouseMoveCam(e: MouseEvent): void {
+    if (!midDragActive || mode !== 'camera') return;
+    const dx = e.clientX - midLastX;
+    const dy = e.clientY - midLastY;
+    midLastX = e.clientX;
+    midLastY = e.clientY;
+
+    if (e.shiftKey) {
+      rigPos.x -= dx * PAN_SPEED;
+      rigPos.y += dy * PAN_SPEED;
+    } else {
+      rigYaw   -= dx * ORBIT_SPEED;
+      rigPitch -= dy * ORBIT_SPEED;
+      rigPitch  = Math.max(-89, Math.min(89, rigPitch));
+    }
+    applyCameraTransform();
+  }
+
+  function onMouseUpCam(): void { midDragActive = false; }
+
+  // Replace onWheel with onWheelFull that handles both modes
+  canvas.removeEventListener('wheel', onWheel);
+  function onWheelFull(e: WheelEvent): void {
+    e.preventDefault();
+    if (mode === 'light') {
+      randomizeLights();
+    } else {
+      camZ -= e.deltaY * 0.01;
+      camZ  = Math.max(0.5, camZ);
+      applyCameraTransform();
+    }
+  }
+  canvas.addEventListener('wheel', onWheelFull, { passive: false });
+
+  function onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'c' || e.key === 'C') {
+      mode = mode === 'light' ? 'camera' : 'light';
+      headerLabel.textContent = `💡 Light Editor [${mode.toUpperCase()}]`;
+      resetCamBtn.style.display = mode === 'camera' ? 'block' : 'none';
+    }
+    if (mode === 'camera' && (e.code === 'Numpad0' || e.key === 'Home')) {
+      resetCamera();
+    }
+  }
+
+  function onContextMenu(e: MouseEvent): void { if (mode === 'camera') e.preventDefault(); }
+
+  canvas.addEventListener('mousedown', onMouseDownCam);
+  window.addEventListener('mousemove', onMouseMoveCam);
+  window.addEventListener('mouseup', onMouseUpCam);
+  window.addEventListener('keydown', onKeyDown);
+  canvas.addEventListener('contextmenu', onContextMenu);
+
+  // Final removeEventListeners — supersedes all previous assignments
+  const prevRemove2 = removeEventListeners;
+  removeEventListeners = function(): void {
+    prevRemove2(); // clears mousedown/mousemove/mouseup for gizmo drag; onWheel already removed above
+    canvas.removeEventListener('wheel', onWheelFull);
+    canvas.removeEventListener('mousedown', onMouseDownCam);
+    window.removeEventListener('mousemove', onMouseMoveCam);
+    window.removeEventListener('mouseup', onMouseUpCam);
+    window.removeEventListener('keydown', onKeyDown);
+    canvas.removeEventListener('contextmenu', onContextMenu);
+  };
+
   // ── Add / Delete lights ───────────────────────────────────────────────────
 
   addLight = function(type: 'point' | 'directional' | 'spot'): void {
