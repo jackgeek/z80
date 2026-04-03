@@ -218,6 +218,191 @@ export function createLightEditor(app: pc.Application): void {
 
   let addLight: (type: 'point' | 'directional' | 'spot') => void = () => {};
 
+  // ── Properties ───────────────────────────────────────────────────────────
+  const propsSection = document.createElement('div');
+  Object.assign(propsSection.style, { padding: '10px' });
+  panel.appendChild(propsSection);
+
+  function n2(v: number): string { return v.toFixed(2); }
+
+  function row(label: string, ...children: HTMLElement[]): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '8px';
+    const lbl = document.createElement('div');
+    Object.assign(lbl.style, { fontSize: '11px', color: '#888', marginBottom: '3px' });
+    lbl.textContent = label;
+    wrap.appendChild(lbl);
+    children.forEach(c => wrap.appendChild(c));
+    return wrap;
+  }
+
+  function numInput(val: number, min: number, max: number, step: number, onChange: (v: number) => void): HTMLInputElement {
+    const el = document.createElement('input');
+    el.type = 'number';
+    el.value = String(val);
+    el.min = String(min);
+    el.max = String(max);
+    el.step = String(step);
+    Object.assign(el.style, {
+      width: '60px', fontSize: '11px', background: '#111',
+      color: '#eee', border: '1px solid #444', borderRadius: '3px',
+      padding: '3px', textAlign: 'center',
+    });
+    el.addEventListener('input', () => onChange(parseFloat(el.value) || 0));
+    return el;
+  }
+
+  function slider(val: number, min: number, max: number, step: number, onChange: (v: number) => void): HTMLInputElement {
+    const el = document.createElement('input');
+    el.type = 'range';
+    el.value = String(val);
+    el.min = String(min);
+    el.max = String(max);
+    el.step = String(step);
+    el.style.width = '100%';
+    el.addEventListener('input', () => onChange(parseFloat(el.value)));
+    return el;
+  }
+
+  renderProps = function(ls: LightState): void {
+    propsSection.innerHTML = '';
+
+    const title = document.createElement('div');
+    Object.assign(title.style, {
+      fontSize: '11px', textTransform: 'uppercase', color: '#666',
+      letterSpacing: '1px', marginBottom: '10px',
+    });
+    title.textContent = `${ls.name} — ${ls.type}`;
+    propsSection.appendChild(title);
+
+    // Color
+    const colorSwatch = document.createElement('input');
+    colorSwatch.type = 'color';
+    colorSwatch.value = colorToHex(ls.color);
+    Object.assign(colorSwatch.style, { width: '28px', height: '28px', border: 'none', cursor: 'pointer', borderRadius: '4px' });
+
+    const rIn = numInput(ls.color.r, 0, 1, 0.01, v => { ls.color.r = v; syncColor(); });
+    const gIn = numInput(ls.color.g, 0, 1, 0.01, v => { ls.color.g = v; syncColor(); });
+    const bIn = numInput(ls.color.b, 0, 1, 0.01, v => { ls.color.b = v; syncColor(); });
+
+    function syncColor(): void {
+      colorSwatch.value = colorToHex(ls.color);
+      applyToScene(ls);
+      updateGizmoColor(ls);
+      const dot = rowEls[selectedIndex]?.querySelector('span');
+      if (dot) dot.style.color = colorToHex(ls.color);
+    }
+
+    colorSwatch.addEventListener('input', () => {
+      const hex = colorSwatch.value;
+      ls.color.r = parseInt(hex.slice(1, 3), 16) / 255;
+      ls.color.g = parseInt(hex.slice(3, 5), 16) / 255;
+      ls.color.b = parseInt(hex.slice(5, 7), 16) / 255;
+      rIn.value = n2(ls.color.r);
+      gIn.value = n2(ls.color.g);
+      bIn.value = n2(ls.color.b);
+      applyToScene(ls);
+      updateGizmoColor(ls);
+    });
+
+    const colorRow = document.createElement('div');
+    Object.assign(colorRow.style, { display: 'flex', alignItems: 'center', gap: '6px' });
+    colorRow.append(colorSwatch, rIn, gIn, bIn);
+    propsSection.appendChild(row('Color', colorRow));
+
+    // Intensity
+    const intensityVal = document.createElement('span');
+    Object.assign(intensityVal.style, { fontSize: '11px', color: '#eee', float: 'right' });
+    intensityVal.textContent = n2(ls.intensity);
+    const intensitySlider = slider(ls.intensity, 0, 10, 0.05, v => {
+      ls.intensity = v;
+      intensityVal.textContent = n2(v);
+      applyToScene(ls);
+    });
+    const intensityLabel = document.createElement('div');
+    Object.assign(intensityLabel.style, { fontSize: '11px', color: '#888', marginBottom: '3px', display: 'flex', justifyContent: 'space-between' });
+    intensityLabel.append(document.createTextNode('Intensity'), intensityVal);
+    const intensityWrap = document.createElement('div');
+    intensityWrap.style.marginBottom = '8px';
+    intensityWrap.append(intensityLabel, intensitySlider);
+    propsSection.appendChild(intensityWrap);
+
+    // Position (point/spot) or Euler angles (directional)
+    if (ls.type === 'directional') {
+      const xIn = numInput(ls.eulerAngles.x, -180, 180, 0.5, v => { ls.eulerAngles.x = v; applyToScene(ls); updateGizmoTransform(ls); });
+      const yIn = numInput(ls.eulerAngles.y, -180, 180, 0.5, v => { ls.eulerAngles.y = v; applyToScene(ls); updateGizmoTransform(ls); });
+      const zIn = numInput(ls.eulerAngles.z, -180, 180, 0.5, v => { ls.eulerAngles.z = v; applyToScene(ls); updateGizmoTransform(ls); });
+      const xyzRow = document.createElement('div');
+      Object.assign(xyzRow.style, { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' });
+
+      function labeledInput(label: string, input: HTMLInputElement): HTMLElement {
+        const wrap = document.createElement('div');
+        const lbl = document.createElement('div');
+        Object.assign(lbl.style, { fontSize: '9px', color: '#555', textAlign: 'center' });
+        lbl.textContent = label;
+        wrap.append(lbl, input);
+        return wrap;
+      }
+
+      ls._xIn = xIn; ls._yIn = yIn; ls._zIn = zIn;
+      xyzRow.append(labeledInput('X', xIn), labeledInput('Y', yIn), labeledInput('Z', zIn));
+      propsSection.appendChild(row('Direction (euler °)', xyzRow));
+    } else {
+      const xIn = numInput(ls.position.x, -20, 20, 0.1, v => { ls.position.x = v; applyToScene(ls); updateGizmoTransform(ls); });
+      const yIn = numInput(ls.position.y, -20, 20, 0.1, v => { ls.position.y = v; applyToScene(ls); updateGizmoTransform(ls); });
+      const zIn = numInput(ls.position.z, -20, 20, 0.1, v => { ls.position.z = v; applyToScene(ls); updateGizmoTransform(ls); });
+      const xyzRow = document.createElement('div');
+      Object.assign(xyzRow.style, { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px' });
+
+      function labeledInput(label: string, input: HTMLInputElement): HTMLElement {
+        const wrap = document.createElement('div');
+        const lbl = document.createElement('div');
+        Object.assign(lbl.style, { fontSize: '9px', color: '#555', textAlign: 'center' });
+        lbl.textContent = label;
+        wrap.append(lbl, input);
+        return wrap;
+      }
+
+      ls._xIn = xIn; ls._yIn = yIn; ls._zIn = zIn;
+      xyzRow.append(labeledInput('X', xIn), labeledInput('Y', yIn), labeledInput('Z', zIn));
+      propsSection.appendChild(row('Position', xyzRow));
+
+      // Range
+      const rangeVal = document.createElement('span');
+      Object.assign(rangeVal.style, { fontSize: '11px', color: '#eee', float: 'right' });
+      rangeVal.textContent = n2(ls.range);
+      const rangeSlider = slider(ls.range, 1, 100, 0.5, v => {
+        ls.range = v;
+        rangeVal.textContent = n2(v);
+        applyToScene(ls);
+      });
+      const rangeLabelRow = document.createElement('div');
+      Object.assign(rangeLabelRow.style, { fontSize: '11px', color: '#888', marginBottom: '3px', display: 'flex', justifyContent: 'space-between' });
+      rangeLabelRow.append(document.createTextNode('Range'), rangeVal);
+      const rangeWrap = document.createElement('div');
+      rangeWrap.style.marginBottom = '8px';
+      rangeWrap.append(rangeLabelRow, rangeSlider);
+      propsSection.appendChild(rangeWrap);
+    }
+
+    // Delete
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Delete';
+    Object.assign(delBtn.style, {
+      width: '100%', fontSize: '11px', background: '#2a1a1a',
+      color: '#ff6666', border: '1px solid #662222', borderRadius: '4px',
+      padding: '5px', cursor: 'pointer', marginTop: '6px',
+    });
+    delBtn.addEventListener('click', () => deleteLight(selectedIndex));
+    propsSection.appendChild(delBtn);
+  };
+
+  // Stubs — replaced in later tasks
+  let applyToScene: (ls: LightState) => void = () => {};
+  let updateGizmoColor: (ls: LightState) => void = () => {};
+  let updateGizmoTransform: (ls: LightState) => void = () => {};
+  let deleteLight: (i: number) => void = () => {};
+
   refreshRows();
   selectLight(0);
 
