@@ -65,6 +65,8 @@ function readLightsFromScene(app: pc.Application): LightState[] {
 export function createLightEditor(app: pc.Application): void {
   const lights: LightState[] = readLightsFromScene(app);
   let mode: EditorMode = 'light';
+  const seeds: number[] = [];
+  let seedIndex = -1;
 
   // ── Panel ────────────────────────────────────────────────────────────────
   const panel = document.createElement('div');
@@ -702,11 +704,8 @@ export function createLightEditor(app: pc.Application): void {
     refreshRows();
   }
 
-  function onWheel(e: WheelEvent): void {
-    if (mode === 'light') {
-      e.preventDefault();
-      randomizeLights();
-    }
+  function onWheel(_e: WheelEvent): void {
+    // superseded by onWheelFull
   }
 
   canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -787,7 +786,18 @@ export function createLightEditor(app: pc.Application): void {
   function onWheelFull(e: WheelEvent): void {
     e.preventDefault();
     if (mode === 'light') {
-      randomizeLights();
+      if (e.deltaY > 0) {
+        if (seedIndex < seeds.length - 1) {
+          seedIndex++;
+        } else {
+          seeds.push(Math.random() * 0xFFFFFFFF | 0);
+          seedIndex = seeds.length - 1;
+        }
+        randomizeLights(seeds[seedIndex]);
+      } else if (e.deltaY < 0 && seedIndex > 0) {
+        seedIndex--;
+        randomizeLights(seeds[seedIndex]);
+      }
     } else {
       camZ -= e.deltaY * 0.01;
       camZ  = Math.max(0.5, camZ);
