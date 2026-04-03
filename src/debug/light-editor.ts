@@ -54,6 +54,91 @@ function readLightsFromScene(app: pc.Application): LightState[] {
 
 export function createLightEditor(app: pc.Application): void {
   const lights: LightState[] = readLightsFromScene(app);
-  // Panel, gizmos, and event listeners added in subsequent tasks.
+  let mode: EditorMode = 'light';
+
+  // ── Panel ────────────────────────────────────────────────────────────────
+  const panel = document.createElement('div');
+  Object.assign(panel.style, {
+    position: 'fixed',
+    top: '16px',
+    right: '16px',
+    width: '280px',
+    background: '#12121e',
+    border: '1px solid #333',
+    borderRadius: '6px',
+    fontFamily: 'monospace',
+    fontSize: '12px',
+    color: '#ddd',
+    zIndex: '9999',
+    userSelect: 'none',
+    boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+  });
+
+  // Header
+  const header = document.createElement('div');
+  Object.assign(header.style, {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 10px',
+    background: '#1a1a2e',
+    borderRadius: '6px 6px 0 0',
+    cursor: 'grab',
+  });
+  const headerLabel = document.createElement('span');
+  headerLabel.textContent = '💡 Light Editor [LIGHT]';
+  const closeBtn = document.createElement('span');
+  closeBtn.textContent = '✕';
+  Object.assign(closeBtn.style, { cursor: 'pointer', opacity: '0.7' });
+  closeBtn.onmouseenter = () => (closeBtn.style.opacity = '1');
+  closeBtn.onmouseleave = () => (closeBtn.style.opacity = '0.7');
+  header.appendChild(headerLabel);
+  header.appendChild(closeBtn);
+  panel.appendChild(header);
+
+  document.body.appendChild(panel);
+
+  // Drag
+  makeDraggable(panel, header);
+
+  // Destroy
+  function destroy(): void {
+    panel.remove();
+    destroyGizmos();
+    removeEventListeners();
+  }
+  closeBtn.addEventListener('click', destroy);
+
+  // Placeholder — filled in later tasks
+  let destroyGizmos: () => void = () => {};
+  let removeEventListeners: () => void = () => {};
+
   console.log('[LightEditor] opened with', lights.length, 'lights');
+}
+
+function makeDraggable(panel: HTMLElement, handle: HTMLElement): void {
+  let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const rect = panel.getBoundingClientRect();
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = rect.left;
+    startTop = rect.top;
+    handle.style.cursor = 'grabbing';
+
+    function onMove(e: MouseEvent): void {
+      panel.style.left = startLeft + (e.clientX - startX) + 'px';
+      panel.style.top  = startTop  + (e.clientY - startY) + 'px';
+      panel.style.right = 'auto';
+    }
+    function onUp(): void {
+      handle.style.cursor = 'grab';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
 }
