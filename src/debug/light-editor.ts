@@ -96,6 +96,131 @@ export function createLightEditor(app: pc.Application): void {
   header.appendChild(closeBtn);
   panel.appendChild(header);
 
+  // ── Light list ───────────────────────────────────────────────────────────
+  const listSection = document.createElement('div');
+  Object.assign(listSection.style, {
+    padding: '8px',
+    borderBottom: '1px solid #2a2a3e',
+  });
+  const listLabel = document.createElement('div');
+  Object.assign(listLabel.style, {
+    fontSize: '10px', textTransform: 'uppercase',
+    color: '#666', letterSpacing: '1px', marginBottom: '6px',
+  });
+  listLabel.textContent = 'Lights';
+  listSection.appendChild(listLabel);
+
+  const listRows = document.createElement('div');
+  Object.assign(listRows.style, { display: 'flex', flexDirection: 'column', gap: '3px' });
+  listSection.appendChild(listRows);
+  panel.appendChild(listSection);
+
+  let selectedIndex = 0;
+  const rowEls: HTMLElement[] = [];
+
+  function colorToHex(c: pc.Color): string {
+    const r = Math.round(Math.clamp(c.r, 0, 1) * 255);
+    const g = Math.round(Math.clamp(c.g, 0, 1) * 255);
+    const b = Math.round(Math.clamp(c.b, 0, 1) * 255);
+    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+
+  function buildRow(ls: LightState, i: number): HTMLElement {
+    const row = document.createElement('div');
+    Object.assign(row.style, {
+      display: 'flex', alignItems: 'center', gap: '6px',
+      padding: '5px 8px', borderRadius: '4px', cursor: 'pointer',
+      border: '1px solid transparent',
+    });
+
+    const dot = document.createElement('span');
+    dot.textContent = '●';
+    dot.style.color = colorToHex(ls.color);
+
+    const nameEl = document.createElement('span');
+    nameEl.style.flex = '1';
+    nameEl.textContent = ls.name;
+
+    const badge = document.createElement('span');
+    Object.assign(badge.style, { fontSize: '10px', color: '#777', marginLeft: '4px' });
+    badge.textContent = ls.type === 'directional' ? 'DIR' : ls.type === 'point' ? 'PT' : 'SPOT';
+
+    const eye = document.createElement('span');
+    eye.textContent = '👁';
+    eye.style.cursor = 'pointer';
+    eye.title = 'Toggle visibility';
+    eye.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ls.entity.enabled = !ls.entity.enabled;
+      eye.style.opacity = ls.entity.enabled ? '1' : '0.3';
+    });
+
+    row.append(dot, nameEl, badge, eye);
+    row.addEventListener('click', () => selectLight(i));
+    return row;
+  }
+
+  function refreshRows(): void {
+    rowEls.length = 0;
+    listRows.innerHTML = '';
+    lights.forEach((ls, i) => {
+      const row = buildRow(ls, i);
+      rowEls.push(row);
+      listRows.appendChild(row);
+    });
+    listRows.appendChild(buildAddRow());
+    highlightRow(selectedIndex);
+  }
+
+  function highlightRow(i: number): void {
+    rowEls.forEach((r, idx) => {
+      r.style.background = idx === i ? '#2a2a4e' : 'transparent';
+      r.style.border = idx === i ? '1px solid #4a6fa5' : '1px solid transparent';
+    });
+  }
+
+  let renderProps: (ls: LightState) => void = () => {};
+
+  function selectLight(i: number): void {
+    selectedIndex = i;
+    highlightRow(i);
+    if (lights[i]) renderProps(lights[i]);
+  }
+
+  function buildAddRow(): HTMLElement {
+    const row = document.createElement('div');
+    Object.assign(row.style, {
+      display: 'flex', alignItems: 'center', gap: '6px',
+      padding: '5px 8px', borderRadius: '4px', cursor: 'pointer',
+      border: '1px dashed #444', marginTop: '2px', color: '#666',
+    });
+    row.innerHTML = '<span>＋</span><span style="flex:1;font-size:11px">Add light…</span>';
+
+    const typeSelect = document.createElement('select');
+    Object.assign(typeSelect.style, {
+      fontSize: '11px', background: '#111', color: '#888',
+      border: '1px solid #444', borderRadius: '3px',
+    });
+    ['Point', 'Directional', 'Spot'].forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.toLowerCase();
+      opt.textContent = t;
+      typeSelect.appendChild(opt);
+    });
+    typeSelect.addEventListener('click', e => e.stopPropagation());
+    row.appendChild(typeSelect);
+
+    row.addEventListener('click', () => {
+      addLight(typeSelect.value as 'point' | 'directional' | 'spot');
+    });
+    return row;
+  }
+
+  let addLight: (type: 'point' | 'directional' | 'spot') => void = () => {};
+
+  refreshRows();
+  selectLight(0);
+
   document.body.appendChild(panel);
 
   // Drag
