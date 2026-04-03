@@ -24,6 +24,16 @@ interface LightState {
 
 type EditorMode = 'light' | 'camera';
 
+function mulberry32(seed: number): () => number {
+  return function() {
+    seed |= 0;
+    seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 0x100000000;
+  };
+}
+
 /** Read existing lights from the "Lighting" entity in the scene. */
 function readLightsFromScene(app: pc.Application): LightState[] {
   const lightingEntity = app.root.findByName('Lighting');
@@ -672,11 +682,11 @@ export function createLightEditor(app: pc.Application): void {
   };
 
   // ── Random lighting ───────────────────────────────────────────────────────
-  function rnd(min: number, max: number): number { return min + Math.random() * (max - min); }
-
-  function randomizeLights(): void {
+  function randomizeLights(seed: number): void {
+    const rand = mulberry32(seed);
+    const rnd = (min: number, max: number) => min + rand() * (max - min);
     lights.forEach(ls => {
-      const [r, g, b] = hsvToRgb(Math.random(), rnd(0.5, 0.9), rnd(0.7, 1.0));
+      const [r, g, b] = hsvToRgb(rand(), rnd(0.5, 0.9), rnd(0.7, 1.0));
       ls.color.set(r, g, b, 1);
       ls.intensity = ls.type === 'directional' ? rnd(0.3, 2.0) : rnd(0.5, 4.0);
       if (ls.type === 'directional') {
