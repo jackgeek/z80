@@ -670,6 +670,42 @@ export function createLightEditor(app: pc.Application): void {
     window.removeEventListener('mouseup', onMouseUp);
   };
 
+  // ── Random lighting ───────────────────────────────────────────────────────
+  function rnd(min: number, max: number): number { return min + Math.random() * (max - min); }
+
+  function randomizeLights(): void {
+    lights.forEach(ls => {
+      const [r, g, b] = hsvToRgb(Math.random(), rnd(0.5, 0.9), rnd(0.7, 1.0));
+      ls.color.set(r, g, b, 1);
+      ls.intensity = ls.type === 'directional' ? rnd(0.3, 2.0) : rnd(0.5, 4.0);
+      if (ls.type === 'directional') {
+        ls.eulerAngles.set(rnd(-60, 60), rnd(-180, 180), 0);
+      } else {
+        ls.position.set(rnd(-5, 5), rnd(-5, 5), rnd(0, 15));
+      }
+      applyToScene(ls);
+      updateGizmoColor(ls);
+      updateGizmoTransform(ls);
+    });
+    if (lights[selectedIndex]) renderProps(lights[selectedIndex]);
+    refreshRows();
+  }
+
+  function onWheel(e: WheelEvent): void {
+    if (mode === 'light') {
+      e.preventDefault();
+      randomizeLights();
+    }
+  }
+
+  canvas.addEventListener('wheel', onWheel, { passive: false });
+
+  const prevRemove = removeEventListeners;
+  removeEventListeners = function(): void {
+    prevRemove();
+    canvas.removeEventListener('wheel', onWheel);
+  };
+
   // ── Add / Delete lights ───────────────────────────────────────────────────
 
   addLight = function(type: 'point' | 'directional' | 'spot'): void {
@@ -773,4 +809,20 @@ function generateTypeScript(lights: LightState[]): string {
     ...blocks.flatMap(b => [b, '']),
     'app.root.addChild(lighting);',
   ].join('\n');
+}
+
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  switch (i % 6) {
+    case 0: return [v, t, p];
+    case 1: return [q, v, p];
+    case 2: return [p, v, t];
+    case 3: return [p, q, v];
+    case 4: return [t, p, v];
+    default: return [v, p, q];
+  }
 }
