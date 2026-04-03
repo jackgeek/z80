@@ -250,6 +250,16 @@ Pressing `Numpad 0` or `Home` (or a **Reset camera** button in the panel) restor
 
 No export for camera — it is a navigation aid only.
 
+### Console Logging
+
+While in Camera mode, every camera transform change logs the current state to the console:
+
+```
+[LightEditor] camera  rig=(0.00, 0.00, 0.00) rot=(12.50, -34.20, 0.00)  cam-z=7.00
+```
+
+`rig` is the CameraRig world position, `rot` is the CameraRig euler angles, `cam-z` is the camera's local Z (distance from pivot). Values are rounded to 2 decimal places.
+
 ### Conflict prevention
 
 All camera navigation mouse events call `event.preventDefault()` to suppress browser defaults (context menu, scroll). The middle mouse button is only captured when the canvas has focus (pointer is over the canvas).
