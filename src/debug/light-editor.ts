@@ -119,9 +119,9 @@ export function createLightEditor(app: pc.Application): void {
   const rowEls: HTMLElement[] = [];
 
   function colorToHex(c: pc.Color): string {
-    const r = Math.round(Math.clamp(c.r, 0, 1) * 255);
-    const g = Math.round(Math.clamp(c.g, 0, 1) * 255);
-    const b = Math.round(Math.clamp(c.b, 0, 1) * 255);
+    const r = Math.round(Math.min(1, Math.max(0, c.r)) * 255);
+    const g = Math.round(Math.min(1, Math.max(0, c.g)) * 255);
+    const b = Math.round(Math.min(1, Math.max(0, c.b)) * 255);
     return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
   }
 
@@ -525,9 +525,10 @@ export function createLightEditor(app: pc.Application): void {
   updateGizmoColor = function(ls: LightState): void {
     if (!ls.gizmoEntity) return;
     const mat = makeEmissiveMaterial(ls.color);
-    ls.gizmoEntity.find((e: pc.Entity) => !!e.render).forEach((e: pc.Entity) => {
-      if (e.render) e.render.meshInstances[0].material = mat;
-    });
+    (ls.gizmoEntity.find((e: pc.GraphNode) => !!(e as pc.Entity).render) as pc.Entity[])
+      .forEach((e: pc.Entity) => {
+        if (e.render) e.render.meshInstances[0].material = mat;
+      });
     if (ls.gizmoEntity.render) ls.gizmoEntity.render.meshInstances[0].material = mat;
   };
 
