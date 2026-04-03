@@ -22,7 +22,7 @@ interface LightState {
   _zIn?: HTMLInputElement;
 }
 
-export type EditorMode = 'light' | 'camera';
+type EditorMode = 'light' | 'camera';
 
 /** Read existing lights from the "Lighting" entity in the scene. */
 function readLightsFromScene(app: pc.Application): LightState[] {
