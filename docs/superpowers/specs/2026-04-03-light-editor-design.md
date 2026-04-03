@@ -80,7 +80,7 @@ A fixed-position, draggable panel (top-right by default). Dark theme matching th
 
 ```
 ┌─────────────────────────────────┐
-│ 💡 Light Editor             [✕] │  ← draggable header
+│ 💡 Light Editor [LIGHT]     [✕] │  ← draggable header, [C] toggles LIGHT/CAMERA
 ├─────────────────────────────────┤
 │ LIGHTS                          │
 │ ● KeyLight          [DIR] [👁]  │  ← selected (highlighted)
@@ -100,6 +100,7 @@ A fixed-position, draggable panel (top-right by default). Dark theme matching th
 │ [    Delete    ]                │
 ├─────────────────────────────────┤
 │ [  Copy TS to clipboard  ]      │
+│ [     Reset camera       ]      │  ← visible in CAMERA mode only
 └─────────────────────────────────┘
 ```
 
@@ -190,9 +191,22 @@ Selected light's gizmo gets an emissive highlight (brighter, slightly enlarged) 
 
 ---
 
-## Random Lighting (Scroll Wheel)
+## Editor Modes
 
-When the mouse wheel scrolls over the canvas while the editor is open, a new random lighting setup is generated and applied live. Preserves the current light **count and types** — only randomizes:
+The editor operates in one of two modes, toggled by pressing `C`. The current mode is shown in the panel header.
+
+| Mode | Panel label | Scroll wheel | Middle mouse |
+|------|-------------|--------------|--------------|
+| **Light** (default) | `💡 Light Editor [LIGHT]` | Randomise lights | — |
+| **Camera** | `💡 Light Editor [CAMERA]` | Zoom (dolly) | Orbit / Pan |
+
+Switching mode is instant — no state is lost. Light gizmos remain visible in camera mode (useful for seeing how camera angle affects lighting).
+
+---
+
+## Random Lighting (Scroll Wheel — Light Mode)
+
+When the mouse wheel scrolls over the canvas in **Light mode**, a new random lighting setup is generated and applied live. Preserves the current light **count and types** — only randomizes:
 
 - **Color:** random hue, medium-high saturation, high value (HSV → RGB)
 - **Intensity:** random within a sensible range per type (directional: 0.3–2.0, point: 0.5–4.0)
@@ -203,11 +217,56 @@ The panel and gizmos update live. Each scroll tick generates a new random setup 
 
 ---
 
+## Camera Navigation (Camera Mode)
+
+Blender viewport controls, active only while the editor is in **Camera mode**. Operates on the existing `CameraRig` + `MainCamera` entities from the scene graph — no new camera entities are created.
+
+### Controls
+
+| Input | Action |
+|-------|--------|
+| Middle mouse drag | Orbit around pivot point |
+| Shift + middle mouse drag | Pan (truck camera laterally) |
+| Scroll wheel | Zoom (dolly in/out along view axis) |
+| `Numpad 0` or `Home` | Reset to initial position |
+
+### Orbit
+
+Pivot point is the world origin (0, 0, 0) by default. Horizontal mouse delta rotates the CameraRig around the Y axis; vertical delta rotates around the CameraRig's local X axis, clamped to ±89° to prevent gimbal flip.
+
+### Pan
+
+Shifts the CameraRig position laterally (X/Y) in camera space, moving the pivot with it.
+
+### Zoom
+
+Moves the camera entity along its local Z axis (dolly), clamped to a minimum distance of 0.5 units from the pivot.
+
+### Reset
+
+Pressing `Numpad 0` or `Home` (or a **Reset camera** button in the panel) restores the exact initial state:
+- CameraRig position: (0, 0, 0), rotation: (0, 0, 0)
+- Camera local position: (0, 0, 7)
+
+No export for camera — it is a navigation aid only.
+
+### Conflict prevention
+
+All camera navigation mouse events call `event.preventDefault()` to suppress browser defaults (context menu, scroll). The middle mouse button is only captured when the canvas has focus (pointer is over the canvas).
+
+---
+
 ## Data Flow
 
 ```
-Scroll wheel
+Scroll wheel (Light mode)
     └─→ randomize() → LightState[] → applyToScene() + updatePanel()
+
+Scroll wheel (Camera mode)
+    └─→ dolly camera along view axis
+
+Middle mouse drag (Camera mode)
+    └─→ orbit or pan CameraRig
 
 Panel input change
     └─→ LightState update → applyToScene() + updateGizmo()
@@ -217,6 +276,12 @@ Gizmo drag
 
 "Copy TS" button
     └─→ generateTypeScript(LightState[]) → clipboard
+
+C key
+    └─→ toggle mode → update panel header label
+
+Reset (button or Numpad0/Home, Camera mode)
+    └─→ restore CameraRig + camera to initial transform
 ```
 
 `applyToScene()` is the single function that writes `LightState` values to the real PlayCanvas light entities. Panel and gizmo updates are kept separate so each can be called independently.
@@ -227,7 +292,7 @@ Gizmo drag
 
 ```
 src/debug/
-  light-editor.ts    # new — the full editor (panel + gizmos + state)
+  light-editor.ts    # new — the full editor (panel + gizmos + camera nav + state)
   frustum-markers.ts # existing — unchanged
 ```
 
@@ -244,3 +309,4 @@ No new dependencies. Uses PlayCanvas APIs already present, and the browser's nat
 - No light linking or shadow control
 - No production build inclusion — entirely behind `import.meta.env.DEV`
 - No spot light cone angle control (spot is treated as point for positioning; cone angle left at default)
+- No camera export — camera navigation is a temporary viewing aid only
