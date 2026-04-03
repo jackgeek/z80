@@ -185,6 +185,7 @@ export function createLightEditor(app: pc.Application): void {
     selectedIndex = i;
     highlightRow(i);
     if (lights[i]) renderProps(lights[i]);
+    updateGizmoHighlight();
   }
 
   function buildAddRow(): HTMLElement {
@@ -471,8 +472,205 @@ export function createLightEditor(app: pc.Application): void {
 
   closeBtn.addEventListener('click', destroy);
 
-  // ── Add / Delete lights ───────────────────────────────────────────────────
+  // ── Gizmos ───────────────────────────────────────────────────────────────
+  const GIZMO_SCALE_NORMAL = new pc.Vec3(0.2, 0.2, 0.2);
+  const GIZMO_SCALE_SELECTED = new pc.Vec3(0.28, 0.28, 0.28);
+  const GIZMO_DIR_POS = new pc.Vec3(0, 2, 0); // fixed anchor for directional arrows
+
+  function makeEmissiveMaterial(color: pc.Color): pc.StandardMaterial {
+    const mat = new pc.StandardMaterial();
+    mat.emissive = color.clone();
+    mat.emissiveIntensity = 1.5;
+    mat.diffuse = new pc.Color(0, 0, 0);
+    mat.update();
+    return mat;
+  }
+
   let createGizmo: (ls: LightState) => pc.Entity | null = (_ls) => null;
+
+  createGizmo = function(ls: LightState): pc.Entity {
+    if (ls.type === 'directional') {
+      const arrow = new pc.Entity(`Gizmo_${ls.name}`);
+
+      const body = new pc.Entity('ArrowBody');
+      body.addComponent('render', { type: 'cylinder', castShadows: false });
+      body.render!.meshInstances[0].material = makeEmissiveMaterial(ls.color);
+      body.setLocalScale(0.05, 0.4, 0.05);
+      body.setLocalPosition(0, 0.2, 0);
+      arrow.addChild(body);
+
+      const tip = new pc.Entity('ArrowTip');
+      tip.addComponent('render', { type: 'cone', castShadows: false });
+      tip.render!.meshInstances[0].material = makeEmissiveMaterial(ls.color);
+      tip.setLocalScale(0.12, 0.2, 0.12);
+      tip.setLocalPosition(0, 0.5, 0);
+      arrow.addChild(tip);
+
+      arrow.setPosition(GIZMO_DIR_POS.x, GIZMO_DIR_POS.y, GIZMO_DIR_POS.z);
+      arrow.setLocalEulerAngles(ls.eulerAngles.x, ls.eulerAngles.y, ls.eulerAngles.z);
+      arrow.setLocalScale(1, 1, 1);
+      app.root.addChild(arrow);
+      return arrow;
+    } else {
+      const sphere = new pc.Entity(`Gizmo_${ls.name}`);
+      sphere.addComponent('render', { type: 'sphere', castShadows: false });
+      sphere.render!.meshInstances[0].material = makeEmissiveMaterial(ls.color);
+      sphere.setPosition(ls.position.x, ls.position.y, ls.position.z);
+      sphere.setLocalScale(GIZMO_SCALE_NORMAL.x, GIZMO_SCALE_NORMAL.y, GIZMO_SCALE_NORMAL.z);
+      app.root.addChild(sphere);
+      return sphere;
+    }
+  };
+
+  updateGizmoColor = function(ls: LightState): void {
+    if (!ls.gizmoEntity) return;
+    const mat = makeEmissiveMaterial(ls.color);
+    ls.gizmoEntity.find((e: pc.Entity) => !!e.render).forEach((e: pc.Entity) => {
+      if (e.render) e.render.meshInstances[0].material = mat;
+    });
+    if (ls.gizmoEntity.render) ls.gizmoEntity.render.meshInstances[0].material = mat;
+  };
+
+  updateGizmoTransform = function(ls: LightState): void {
+    if (!ls.gizmoEntity) return;
+    if (ls.type === 'directional') {
+      ls.gizmoEntity.setLocalEulerAngles(ls.eulerAngles.x, ls.eulerAngles.y, ls.eulerAngles.z);
+    } else {
+      ls.gizmoEntity.setPosition(ls.position.x, ls.position.y, ls.position.z);
+    }
+  };
+
+  // Create gizmos for all initial lights
+  lights.forEach(ls => { ls.gizmoEntity = createGizmo(ls); });
+
+  // Update destroyGizmos
+  destroyGizmos = function(): void {
+    lights.forEach(ls => { if (ls.gizmoEntity) { ls.gizmoEntity.destroy(); ls.gizmoEntity = null; } });
+  };
+
+  function updateGizmoHighlight(): void {
+    lights.forEach((ls, i) => {
+      if (!ls.gizmoEntity) return;
+      const scale = i === selectedIndex ? GIZMO_SCALE_SELECTED : GIZMO_SCALE_NORMAL;
+      if (ls.type !== 'directional') {
+        ls.gizmoEntity.setLocalScale(scale.x, scale.y, scale.z);
+      }
+    });
+  }
+
+  // ── Gizmo drag ────────────────────────────────────────────────────────────
+  const canvas = app.graphicsDevice.canvas;
+  let dragLight: LightState | null = null;
+  const camEntity = app.root.findByName('MainCamera') as pc.Entity;
+
+  const rayNear = new pc.Vec3();
+  const rayFar  = new pc.Vec3();
+
+  function screenToZ0(sx: number, sy: number): pc.Vec3 | null {
+    const cam = camEntity.camera;
+    if (!cam) return null;
+    cam.screenToWorld(sx, sy, cam.nearClip, rayNear);
+    cam.screenToWorld(sx, sy, cam.farClip,  rayFar);
+    const dz = rayFar.z - rayNear.z;
+    if (Math.abs(dz) < 1e-6) return null;
+    const t = -rayNear.z / dz;
+    return new pc.Vec3(
+      rayNear.x + t * (rayFar.x - rayNear.x),
+      rayNear.y + t * (rayFar.y - rayNear.y),
+      0
+    );
+  }
+
+  let arrowDragLastX = 0, arrowDragLastY = 0;
+  let dragArrow: LightState | null = null;
+
+  function onMouseDown(e: MouseEvent): void {
+    if (mode !== 'light') return;
+    if (e.button !== 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+
+    // Arrow pick (directional)
+    lights.forEach(ls => {
+      if (ls.type !== 'directional' || !ls.gizmoEntity) return;
+      const cam = camEntity.camera;
+      if (!cam) return;
+      const screenPos = new pc.Vec3();
+      cam.worldToScreen(ls.gizmoEntity.getPosition(), screenPos);
+      const dist = Math.hypot(screenPos.x - sx, screenPos.y - sy);
+      if (dist < 40) {
+        dragArrow = ls;
+        arrowDragLastX = e.clientX;
+        arrowDragLastY = e.clientY;
+        e.preventDefault();
+      }
+    });
+
+    if (dragArrow) return;
+
+    // Sphere pick (point/spot)
+    let closest: LightState | null = null;
+    let closestDist = 30;
+    lights.forEach(ls => {
+      if (ls.type === 'directional' || !ls.gizmoEntity) return;
+      const cam = camEntity.camera;
+      if (!cam) return;
+      const screenPos = new pc.Vec3();
+      cam.worldToScreen(ls.position, screenPos);
+      const dist = Math.hypot(screenPos.x - sx, screenPos.y - sy);
+      if (dist < closestDist) { closestDist = dist; closest = ls; }
+    });
+
+    if (closest) {
+      dragLight = closest;
+      e.preventDefault();
+    }
+  }
+
+  function onMouseMove(e: MouseEvent): void {
+    if (mode !== 'light') return;
+
+    if (dragArrow) {
+      const dx = e.clientX - arrowDragLastX;
+      const dy = e.clientY - arrowDragLastY;
+      arrowDragLastX = e.clientX;
+      arrowDragLastY = e.clientY;
+      dragArrow.eulerAngles.y -= dx * 0.5;
+      dragArrow.eulerAngles.x -= dy * 0.5;
+      dragArrow.eulerAngles.x = Math.max(-89, Math.min(89, dragArrow.eulerAngles.x));
+      applyToScene(dragArrow);
+      updateGizmoTransform(dragArrow);
+      if (dragArrow._xIn) dragArrow._xIn.value = n2(dragArrow.eulerAngles.x);
+      if (dragArrow._yIn) dragArrow._yIn.value = n2(dragArrow.eulerAngles.y);
+      if (dragArrow._zIn) dragArrow._zIn.value = n2(dragArrow.eulerAngles.z);
+      return;
+    }
+
+    if (!dragLight) return;
+    const rect = canvas.getBoundingClientRect();
+    const hit = screenToZ0(e.clientX - rect.left, e.clientY - rect.top);
+    if (!hit) return;
+    dragLight.position.set(hit.x, hit.y, dragLight.position.z);
+    applyToScene(dragLight);
+    updateGizmoTransform(dragLight);
+    if (dragLight._xIn) dragLight._xIn.value = n2(hit.x);
+    if (dragLight._yIn) dragLight._yIn.value = n2(hit.y);
+  }
+
+  function onMouseUp(): void { dragLight = null; dragArrow = null; }
+
+  canvas.addEventListener('mousedown', onMouseDown);
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+
+  removeEventListeners = function(): void {
+    canvas.removeEventListener('mousedown', onMouseDown);
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+  };
+
+  // ── Add / Delete lights ───────────────────────────────────────────────────
 
   addLight = function(type: 'point' | 'directional' | 'spot'): void {
     const lightingEntity = app.root.findByName('Lighting')!;
