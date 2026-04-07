@@ -24,7 +24,7 @@ export interface SceneEntities {
   monitor: pc.Entity;
   screenQuad: pc.Entity;
   screenTexture: pc.Texture;
-  borderMaterial: pc.StandardMaterial;
+  borderTexture: pc.Texture;
   keyboard: pc.Entity;
   keys: Map<string, pc.Entity>;
   pressKey3D: (index: number, down: boolean) => void;
@@ -142,7 +142,7 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
     monitor: monitorResult.monitorEntity,
     screenQuad: monitorResult.screenQuad,
     screenTexture: monitorResult.screenTexture,
-    borderMaterial: monitorResult.borderMaterial,
+    borderTexture: monitorResult.borderTexture,
     keyboard: kbResult.keyboardEntity,
     keys: kbResult.keys,
     pressKey3D: kbResult.pressKey,

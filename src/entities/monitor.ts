@@ -30,7 +30,7 @@ export interface MonitorResult {
   monitorEntity: pc.Entity;
   screenQuad: pc.Entity;
   screenTexture: pc.Texture;
-  borderMaterial: pc.StandardMaterial;
+  borderTexture: pc.Texture;
 }
 
 // Two-canvas approach for crisp pixel rendering:
@@ -51,6 +51,28 @@ upscaledCanvas.width = TEX_W;
 upscaledCanvas.height = TEX_H;
 const upscaledCtx = upscaledCanvas.getContext('2d')!;
 upscaledCtx.imageSmoothingEnabled = false;
+
+// Border stripe texture: 1px wide × 64px tall canvas, one row per time slot
+const borderCanvas = document.createElement('canvas');
+borderCanvas.width = 1;
+borderCanvas.height = 64;
+const borderCtx = borderCanvas.getContext('2d')!;
+
+// Pre-built RGBA palette for the 8 ZX Spectrum border colours (matches BORDER_COLORS)
+// Layout: 8 entries × 4 bytes [R, G, B, A]
+const BORDER_PALETTE_RGBA = new Uint8Array([
+  0,   0,   0,   255, // 0 black
+  0,   0,   204, 255, // 1 blue
+  204, 0,   0,   255, // 2 red
+  204, 0,   204, 255, // 3 magenta
+  0,   204, 0,   255, // 4 green
+  0,   204, 204, 255, // 5 cyan
+  204, 204, 0,   255, // 6 yellow
+  204, 204, 204, 255, // 7 white
+]);
+
+// Reusable 1×64 RGBA pixel buffer for border stripe texture upload
+const borderPixels = new ImageData(1, 64);
 
 export function createMonitor(app: pc.Application): MonitorResult {
   const device = app.graphicsDevice;
@@ -81,10 +103,32 @@ export function createMonitor(app: pc.Application): MonitorResult {
   screenMat.useLighting = false;
   screenMat.update();
 
-  // ── Border plane (behind screen, shows ZX Spectrum border color) ────────
+  // ── Border stripe texture (1×64, one row per ~1092 T-cycle slot) ────────
+  const borderTexture = new pc.Texture(device, {
+    width: 1,
+    height: 64,
+    format: pc.PIXELFORMAT_RGBA8,
+    minFilter: pc.FILTER_NEAREST,
+    magFilter: pc.FILTER_NEAREST,
+    addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+    addressV: pc.ADDRESS_CLAMP_TO_EDGE,
+    mipmaps: false,
+  });
+  // Initialise to solid white (border colour 7)
+  const initPixels = new ImageData(1, 64);
+  for (let i = 0; i < 64; i++) {
+    initPixels.data[i * 4 + 0] = 204;
+    initPixels.data[i * 4 + 1] = 204;
+    initPixels.data[i * 4 + 2] = 204;
+    initPixels.data[i * 4 + 3] = 255;
+  }
+  borderCtx.putImageData(initPixels, 0, 0);
+  borderTexture.setSource(borderCanvas);
+
   const borderMat = new pc.StandardMaterial();
-  borderMat.diffuse = BORDER_COLORS[7].clone(); // default white
-  borderMat.emissive = BORDER_COLORS[7].clone();
+  borderMat.diffuseMap = borderTexture;
+  borderMat.emissiveMap = borderTexture;
+  borderMat.emissive = new pc.Color(1, 1, 1);
   borderMat.useLighting = false;
   borderMat.update();
 
@@ -107,22 +151,28 @@ export function createMonitor(app: pc.Application): MonitorResult {
   monitor.addChild(screenQuad);
   screenQuad.tags.add('screen');
 
-  return { monitorEntity: monitor, screenQuad, screenTexture, borderMaterial: borderMat };
+  return { monitorEntity: monitor, screenQuad, screenTexture, borderTexture };
 }
 
-let lastBorderColor = -1;
+let borderLogSrc: Uint8Array | null = null;
 
-export function updateBorderColor(
-  borderMaterial: pc.StandardMaterial,
+export function updateBorderTexture(
+  borderTexture: pc.Texture,
+  memory: WebAssembly.Memory,
   wasm: WasmExports
 ): void {
-  const color = wasm.getBorderColor() & 7;
-  if (color === lastBorderColor) return;
-  lastBorderColor = color;
-  const c = BORDER_COLORS[color];
-  borderMaterial.diffuse.copy(c);
-  borderMaterial.emissive.copy(c);
-  borderMaterial.update();
+  if (!borderLogSrc || borderLogSrc.buffer !== memory.buffer) {
+    borderLogSrc = new Uint8Array(memory.buffer, wasm.getBorderLogAddr(), 64);
+  }
+  for (let i = 0; i < 64; i++) {
+    const c = (borderLogSrc[i] & 7) * 4;
+    borderPixels.data[i * 4 + 0] = BORDER_PALETTE_RGBA[c + 0];
+    borderPixels.data[i * 4 + 1] = BORDER_PALETTE_RGBA[c + 1];
+    borderPixels.data[i * 4 + 2] = BORDER_PALETTE_RGBA[c + 2];
+    borderPixels.data[i * 4 + 3] = 255;
+  }
+  borderCtx.putImageData(borderPixels, 0, 0);
+  borderTexture.setSource(borderCanvas);
 }
 
 // Reusable view into WASM memory for texture updates
