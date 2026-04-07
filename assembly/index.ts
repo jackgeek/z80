@@ -151,10 +151,10 @@ let beeperState: u8 = 0; // current beeper level (0 or 1)
 let audioSampleIndex: i32 = 0;
 let audioCycleAccum: i32 = 0;
 
-// Border colour log: 64 samples per frame, one per ~1092 T-cycles
+// Border colour log: 312 samples per frame, one per scanline (224 T-cycles)
 const BORDER_LOG_BASE: u32     = 0x1C0400; // 1KB after audio buffer
-const BORDER_LOG_SAMPLES: i32  = 64;
-const BORDER_LOG_DIVISOR: i32  = 1092;     // 69888 / 64
+const BORDER_LOG_SAMPLES: i32  = 312;
+const BORDER_LOG_DIVISOR: i32  = 224;      // 69888 / 312 = one sample per scanline
 let borderLogIndex: i32 = 0;
 let borderLogAccum: i32 = 0;
 

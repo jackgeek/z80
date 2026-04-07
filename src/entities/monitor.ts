@@ -43,7 +43,7 @@ upscaledCtx.imageSmoothingEnabled = false;
 // Border stripe texture: 1px wide × 64px tall canvas, one row per time slot
 const borderCanvas = document.createElement('canvas');
 borderCanvas.width = 1;
-borderCanvas.height = 64;
+borderCanvas.height = 312;
 const borderCtx = borderCanvas.getContext('2d')!;
 
 // Pre-built RGBA palette for the 8 ZX Spectrum border colours
@@ -59,8 +59,8 @@ const BORDER_PALETTE_RGBA = new Uint8Array([
   204, 204, 204, 255, // 7 white
 ]);
 
-// Reusable 1×64 RGBA pixel buffer for border stripe texture upload
-const borderPixels = new ImageData(1, 64);
+// Reusable 1×312 RGBA pixel buffer for border stripe texture upload
+const borderPixels = new ImageData(1, 312);
 
 export function createMonitor(app: pc.Application): MonitorResult {
   const device = app.graphicsDevice;
@@ -94,7 +94,7 @@ export function createMonitor(app: pc.Application): MonitorResult {
   // ── Border stripe texture (1×64, one row per ~1092 T-cycle slot) ────────
   const borderTexture = new pc.Texture(device, {
     width: 1,
-    height: 64,
+    height: 312,
     format: pc.PIXELFORMAT_RGBA8,
     minFilter: pc.FILTER_NEAREST,
     magFilter: pc.FILTER_NEAREST,
@@ -103,7 +103,7 @@ export function createMonitor(app: pc.Application): MonitorResult {
     mipmaps: false,
   });
   // Initialise to solid white (border colour 7)
-  for (let i = 0; i < 64; i++) {
+  for (let i = 0; i < 312; i++) {
     borderPixels.data[i * 4 + 0] = 204;
     borderPixels.data[i * 4 + 1] = 204;
     borderPixels.data[i * 4 + 2] = 204;
@@ -149,9 +149,9 @@ export function updateBorderTexture(
   wasm: WasmExports
 ): void {
   if (!borderLogSrc || borderLogSrc.buffer !== memory.buffer) {
-    borderLogSrc = new Uint8Array(memory.buffer, wasm.getBorderLogAddr(), 64);
+    borderLogSrc = new Uint8Array(memory.buffer, wasm.getBorderLogAddr(), 312);
   }
-  for (let i = 0; i < 64; i++) {
+  for (let i = 0; i < 312; i++) {
     const c = (borderLogSrc[i] & 7) * 4;
     borderPixels.data[i * 4 + 0] = BORDER_PALETTE_RGBA[c + 0];
     borderPixels.data[i * 4 + 1] = BORDER_PALETTE_RGBA[c + 1];
