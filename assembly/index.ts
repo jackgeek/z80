@@ -151,6 +151,13 @@ let beeperState: u8 = 0; // current beeper level (0 or 1)
 let audioSampleIndex: i32 = 0;
 let audioCycleAccum: i32 = 0;
 
+// Border colour log: 64 samples per frame, one per ~1092 T-cycles
+const BORDER_LOG_BASE: u32     = 0x1C0400; // 1KB after audio buffer
+const BORDER_LOG_SAMPLES: i32  = 64;
+const BORDER_LOG_DIVISOR: i32  = 1092;     // 69888 / 64
+let borderLogIndex: i32 = 0;
+let borderLogAccum: i32 = 0;
+
 // ============================================================
 // REGISTER PAIR HELPERS
 // ============================================================
@@ -1722,6 +1729,8 @@ export function frame(): void {
   let safety: i32 = 0;
   audioSampleIndex = 0;
   audioCycleAccum = 0;
+  borderLogIndex = 0;
+  borderLogAccum = 0;
 
   while (cycles < CYCLES_PER_FRAME) {
     let c = execute();
@@ -1753,6 +1762,14 @@ export function frame(): void {
       audioCycleAccum -= AUDIO_DIVISOR;
       store<u8>(AUDIO_BASE + <u32>audioSampleIndex, beeperState);
       audioSampleIndex++;
+    }
+
+    // Record border colour at ~64 evenly-spaced points per frame
+    borderLogAccum += c;
+    while (borderLogAccum >= BORDER_LOG_DIVISOR && borderLogIndex < BORDER_LOG_SAMPLES) {
+      borderLogAccum -= BORDER_LOG_DIVISOR;
+      store<u8>(BORDER_LOG_BASE + <u32>borderLogIndex, borderColor);
+      borderLogIndex++;
     }
 
     safety++;
@@ -1812,6 +1829,10 @@ export function getScreenBaseAddr(): u32 {
 
 export function getBorderColor(): u8 {
   return borderColor;
+}
+
+export function getBorderLogAddr(): u32 {
+  return BORDER_LOG_BASE;
 }
 
 export function setKempston(v: u8): void { kempston = v; }
