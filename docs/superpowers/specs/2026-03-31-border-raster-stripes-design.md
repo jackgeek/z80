@@ -32,7 +32,9 @@ BORDER_LOG_DIVISOR = 69888 / 64 = 1092  (T-cycles per slot)
 ### New export
 
 ```typescript
-export function getBorderLogAddr(): u32 { return BORDER_LOG_BASE; }
+export function getBorderLogAddr(): u32 {
+  return BORDER_LOG_BASE;
+}
 ```
 
 Added to `WasmExports` interface in `src/emulator/wasm-types.ts`.
@@ -44,6 +46,7 @@ Added to `WasmExports` interface in `src/emulator/wasm-types.ts`.
 ### Border texture
 
 Replace the solid `StandardMaterial` colour with a 1×64 `pc.Texture`:
+
 - Format: `PIXELFORMAT_RGBA8`
 - Filtering: nearest-neighbour (`FILTER_NEAREST`)
 - Address mode: `ADDRESS_CLAMP_TO_EDGE`
@@ -91,12 +94,12 @@ updateBorderTexture(entities.borderTexture, memory, wasm);
 
 ## Section 3: Edge cases
 
-| Scenario | Behaviour |
-|---|---|
-| Tape not playing | Log contains 64 copies of the same colour → solid band, visually identical to current |
+| Scenario                | Behaviour                                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| Tape not playing        | Log contains 64 copies of the same colour → solid band, visually identical to current                |
 | Turbo mode (50× frames) | Each frame overwrites the log; only last frame rendered — acceptable, turbo is not visually accurate |
-| TZX 20× fast-load | Same — last frame's log rendered per display frame; stripes still authentic per frame |
-| Snapshot restore | `setBorderColor_ext` sets `borderColor`; log populated correctly on next `frame()` call |
+| TZX 20× fast-load       | Same — last frame's log rendered per display frame; stripes still authentic per frame                |
+| Snapshot restore        | `setBorderColor_ext` sets `borderColor`; log populated correctly on next `frame()` call              |
 
 ### Removed optimisation
 
@@ -106,9 +109,9 @@ The `lastBorderColor` early-exit guard is removed. The texture is always uploade
 
 ## Files changed
 
-| File | Change |
-|---|---|
-| `assembly/index.ts` | Add `BORDER_LOG_BASE`, `BORDER_LOG_DIVISOR`, sampling in CPU loop, `getBorderLogAddr()` export |
-| `src/emulator/wasm-types.ts` | Add `getBorderLogAddr(): number` |
-| `src/entities/monitor.ts` | Replace solid border material with 1×64 texture; replace `updateBorderColor` with `updateBorderTexture` |
-| `src/main.ts` | Update call site and destructured field name |
+| File                         | Change                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `assembly/index.ts`          | Add `BORDER_LOG_BASE`, `BORDER_LOG_DIVISOR`, sampling in CPU loop, `getBorderLogAddr()` export          |
+| `src/emulator/wasm-types.ts` | Add `getBorderLogAddr(): number`                                                                        |
+| `src/entities/monitor.ts`    | Replace solid border material with 1×64 texture; replace `updateBorderColor` with `updateBorderTexture` |
+| `src/main.ts`                | Update call site and destructured field name                                                            |
