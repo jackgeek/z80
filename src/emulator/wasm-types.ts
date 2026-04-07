@@ -30,6 +30,7 @@ export interface WasmExports {
 
   // Border
   getBorderColor(): number;
+  getBorderLogAddr(): number;
   setBorderColor_ext(color: number): void;
 
   // CPU registers — getters
