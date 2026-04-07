@@ -52,63 +52,58 @@ export function buildSceneGraph(app: pc.Application): SceneEntities {
   // ── Lighting ──────────────────────────────────────────────────────────────
   const lighting = new pc.Entity("Lighting");
 
-  // Key light — warm directional from top-front-right
   const keyLight = new pc.Entity("KeyLight");
   keyLight.addComponent("light", {
     type: "directional",
-    color: new pc.Color(1.0, 0.95, 0.85),
-    intensity: 1.2,
+    color: new pc.Color(0.555, 0.14, 0.982),
+    intensity: 1.605,
     castShadows: false,
   });
-  keyLight.setLocalEulerAngles(35, 20, 0);
+  keyLight.setLocalEulerAngles(32.41, -30.838, 0);
   lighting.addChild(keyLight);
 
-  // Fill light — cool from left to soften shadows
   const fillLight = new pc.Entity("FillLight");
   fillLight.addComponent("light", {
     type: "directional",
-    color: new pc.Color(0.7, 0.75, 1.0),
-    intensity: 0.5,
+    color: new pc.Color(0.669, 0.804, 0.347),
+    intensity: 0.423,
     castShadows: false,
   });
-  fillLight.setLocalEulerAngles(-20, -40, 0);
+  fillLight.setLocalEulerAngles(-49.673, 18.126, 0);
   lighting.addChild(fillLight);
 
-  // Rim light — amber accent from behind/above
   const rimLight = new pc.Entity("RimLight");
   rimLight.addComponent("light", {
     type: "point",
-    color: new pc.Color(1.0, 0.85, 0.5),
-    intensity: 0.8,
-    range: 25,
+    color: new pc.Color(0.313, 0.633, 0.822),
+    intensity: 1.489,
     castShadows: false,
+    range: 25,
   });
-  rimLight.setLocalPosition(0, 4, -3);
+  rimLight.setLocalPosition(-3.772, -2.078, 8.335);
   lighting.addChild(rimLight);
 
-  // Keyboard fill lights — two point lights flanking the camera, centred on
-  // the keyboard area so the full key grid is evenly lit from the front
-  const kbLightL = new pc.Entity("KeyboardLightL");
-  kbLightL.addComponent("light", {
+  const keyboardLightL = new pc.Entity("KeyboardLightL");
+  keyboardLightL.addComponent("light", {
     type: "point",
-    color: new pc.Color(1.0, 1.0, 0.95),
-    intensity: 2.5,
+    color: new pc.Color(0.305, 0.36, 0.769),
+    intensity: 3.438,
+    castShadows: false,
     range: 25,
-    castShadows: false,
   });
-  kbLightL.setLocalPosition(-4, -1, 12);
-  lighting.addChild(kbLightL);
+  keyboardLightL.setLocalPosition(4.196, 3.188, 8.841);
+  lighting.addChild(keyboardLightL);
 
-  const kbLightR = new pc.Entity("KeyboardLightR");
-  kbLightR.addComponent("light", {
+  const keyboardLightR = new pc.Entity("KeyboardLightR");
+  keyboardLightR.addComponent("light", {
     type: "point",
-    color: new pc.Color(1.0, 1.0, 0.95),
-    intensity: 1.5,
-    range: 50,
+    color: new pc.Color(0.803, 0.409, 0.269),
+    intensity: 3.943,
     castShadows: false,
+    range: 50,
   });
-  kbLightR.setLocalPosition(4, -1, 12);
-  lighting.addChild(kbLightR);
+  keyboardLightR.setLocalPosition(-2.475, -0.777, 12.715);
+  lighting.addChild(keyboardLightR);
 
   app.root.addChild(lighting);
 
