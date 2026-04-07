@@ -40,12 +40,6 @@ upscaledCanvas.height = TEX_H;
 const upscaledCtx = upscaledCanvas.getContext('2d')!;
 upscaledCtx.imageSmoothingEnabled = false;
 
-// Border stripe texture: 1px wide × 64px tall canvas, one row per time slot
-const borderCanvas = document.createElement('canvas');
-borderCanvas.width = 1;
-borderCanvas.height = 312;
-const borderCtx = borderCanvas.getContext('2d')!;
-
 // Pre-built RGBA palette for the 8 ZX Spectrum border colours
 // Layout: 8 entries × 4 bytes [R, G, B, A]
 const BORDER_PALETTE_RGBA = new Uint8Array([
@@ -58,9 +52,6 @@ const BORDER_PALETTE_RGBA = new Uint8Array([
   204, 204, 0,   255, // 6 yellow
   204, 204, 204, 255, // 7 white
 ]);
-
-// Reusable 1×312 RGBA pixel buffer for border stripe texture upload
-const borderPixels = new ImageData(1, 312);
 
 export function createMonitor(app: pc.Application): MonitorResult {
   const device = app.graphicsDevice;
@@ -91,7 +82,9 @@ export function createMonitor(app: pc.Application): MonitorResult {
   screenMat.useLighting = false;
   screenMat.update();
 
-  // ── Border stripe texture (1×64, one row per ~1092 T-cycle slot) ────────
+  // ── Border stripe texture (1×312, one row per scanline slot) ────────────
+  // Written via lock()/unlock() directly into GPU memory — no canvas needed.
+  // V maps vertically on the plane; each of the 312 rows = one scanline slot.
   const borderTexture = new pc.Texture(device, {
     width: 1,
     height: 312,
@@ -103,14 +96,16 @@ export function createMonitor(app: pc.Application): MonitorResult {
     mipmaps: false,
   });
   // Initialise to solid white (border colour 7)
-  for (let i = 0; i < 312; i++) {
-    borderPixels.data[i * 4 + 0] = 204;
-    borderPixels.data[i * 4 + 1] = 204;
-    borderPixels.data[i * 4 + 2] = 204;
-    borderPixels.data[i * 4 + 3] = 255;
+  {
+    const data = borderTexture.lock() as Uint8Array;
+    for (let i = 0; i < 312; i++) {
+      data[i * 4 + 0] = 204;
+      data[i * 4 + 1] = 204;
+      data[i * 4 + 2] = 204;
+      data[i * 4 + 3] = 255;
+    }
+    borderTexture.unlock();
   }
-  borderCtx.putImageData(borderPixels, 0, 0);
-  borderTexture.setSource(borderCanvas);
 
   const borderMat = new pc.StandardMaterial();
   borderMat.diffuseMap = borderTexture;
@@ -151,15 +146,15 @@ export function updateBorderTexture(
   if (!borderLogSrc || borderLogSrc.buffer !== memory.buffer) {
     borderLogSrc = new Uint8Array(memory.buffer, wasm.getBorderLogAddr(), 312);
   }
+  const data = borderTexture.lock() as Uint8Array;
   for (let i = 0; i < 312; i++) {
     const c = (borderLogSrc[i] & 7) * 4;
-    borderPixels.data[i * 4 + 0] = BORDER_PALETTE_RGBA[c + 0];
-    borderPixels.data[i * 4 + 1] = BORDER_PALETTE_RGBA[c + 1];
-    borderPixels.data[i * 4 + 2] = BORDER_PALETTE_RGBA[c + 2];
-    borderPixels.data[i * 4 + 3] = 255;
+    data[i * 4 + 0] = BORDER_PALETTE_RGBA[c + 0];
+    data[i * 4 + 1] = BORDER_PALETTE_RGBA[c + 1];
+    data[i * 4 + 2] = BORDER_PALETTE_RGBA[c + 2];
+    data[i * 4 + 3] = 255;
   }
-  borderCtx.putImageData(borderPixels, 0, 0);
-  borderTexture.setSource(borderCanvas);
+  borderTexture.unlock();
 }
 
 // Reusable view into WASM memory for texture updates
