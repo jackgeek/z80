@@ -14,18 +14,6 @@ const SCREEN_H = 1.5;   // main display height
 const BORDER_W = SCREEN_W * (1 + BORDER_FRACTION);  // full opening width including border
 const BORDER_H = SCREEN_H * (1 + BORDER_FRACTION);  // full opening height
 
-// ZX Spectrum border palette (same as original)
-const BORDER_COLORS: pc.Color[] = [
-  new pc.Color(0, 0, 0),             // 0 black
-  new pc.Color(0, 0, 0.80),          // 1 blue
-  new pc.Color(0.80, 0, 0),          // 2 red
-  new pc.Color(0.80, 0, 0.80),       // 3 magenta
-  new pc.Color(0, 0.80, 0),          // 4 green
-  new pc.Color(0, 0.80, 0.80),       // 5 cyan
-  new pc.Color(0.80, 0.80, 0),       // 6 yellow
-  new pc.Color(0.80, 0.80, 0.80),    // 7 white
-];
-
 export interface MonitorResult {
   monitorEntity: pc.Entity;
   screenQuad: pc.Entity;
@@ -58,7 +46,7 @@ borderCanvas.width = 1;
 borderCanvas.height = 64;
 const borderCtx = borderCanvas.getContext('2d')!;
 
-// Pre-built RGBA palette for the 8 ZX Spectrum border colours (matches BORDER_COLORS)
+// Pre-built RGBA palette for the 8 ZX Spectrum border colours
 // Layout: 8 entries × 4 bytes [R, G, B, A]
 const BORDER_PALETTE_RGBA = new Uint8Array([
   0,   0,   0,   255, // 0 black
@@ -115,14 +103,13 @@ export function createMonitor(app: pc.Application): MonitorResult {
     mipmaps: false,
   });
   // Initialise to solid white (border colour 7)
-  const initPixels = new ImageData(1, 64);
   for (let i = 0; i < 64; i++) {
-    initPixels.data[i * 4 + 0] = 204;
-    initPixels.data[i * 4 + 1] = 204;
-    initPixels.data[i * 4 + 2] = 204;
-    initPixels.data[i * 4 + 3] = 255;
+    borderPixels.data[i * 4 + 0] = 204;
+    borderPixels.data[i * 4 + 1] = 204;
+    borderPixels.data[i * 4 + 2] = 204;
+    borderPixels.data[i * 4 + 3] = 255;
   }
-  borderCtx.putImageData(initPixels, 0, 0);
+  borderCtx.putImageData(borderPixels, 0, 0);
   borderTexture.setSource(borderCanvas);
 
   const borderMat = new pc.StandardMaterial();
